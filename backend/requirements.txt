@@ -2,10 +2,7 @@ fastapi
 uvicorn[standard]
 python-socketio
 opencv-python
-ultralytics
-mediapipe
-google-generativeai
-elevenlabs
+google-genai
 python-multipart
 sqlalchemy
 aiosqlite

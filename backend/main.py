@@ -8,9 +8,13 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+from api.notification import notification_router
+
 load_dotenv()
 
 app = FastAPI(title="CampusGuard API")
+
+app.include_router(notification_router)
 
 app.add_middleware(
     CORSMiddleware,

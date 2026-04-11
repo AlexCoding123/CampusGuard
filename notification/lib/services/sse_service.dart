@@ -5,7 +5,7 @@ import 'package:flutter_client_sse/constants/sse_request_type_enum.dart';
 import '../models/alert_model.dart';
 
 class SSEService {
-  static const String baseUrl = '10.170.184.80';
+  static const String baseUrl = 'http://localhost:8000'; // your Mac's IP, no trailing slash
 
   static StreamController<SecurityAlert>? _controller;
   static StreamSubscription? _subscription;
@@ -18,7 +18,7 @@ class SSEService {
   static void connect() {
     _subscription = SSEClient.subscribeToSSE(
       method: SSERequestType.GET,
-      url: '$baseUrl/alerts/stream',
+      url: '$baseUrl/alerts/stream', // no double slash now
       header: {
         'Accept': 'text/event-stream',
         'Cache-Control': 'no-cache',
