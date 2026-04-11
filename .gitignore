@@ -1,0 +1,6 @@
+.env
+node_modules/
+static/
+videos/
+__pycache__/
+*.pyc
