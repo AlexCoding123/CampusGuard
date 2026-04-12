@@ -10,7 +10,7 @@ notification_router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 alert_queues: list[asyncio.Queue] = []
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "videos")
 
 
 @notification_router.get("/media/{filename}")
@@ -35,7 +35,10 @@ async def stream_alerts(request: Request):
                     break
                 try:
                     alert = await asyncio.wait_for(queue.get(), timeout=30)
-                    yield {"event": "threat", "data": json.dumps(alert)}
+                    if alert.get("_type") == "reset":
+                        yield {"event": "reset", "data": "{}"}
+                    else:
+                        yield {"event": "threat", "data": json.dumps(alert)}
                 except asyncio.TimeoutError:
                     yield {"event": "heartbeat", "data": "ping"}
         finally:
@@ -62,6 +65,14 @@ async def send_alert(alert: dict):
         await queue.put(payload)
     print(f"Alert sent to {len(alert_queues)} client(s)")
     return {"status": "sent", "sent_to": len(alert_queues), "payload": payload}
+
+
+@notification_router.post("/reset")
+async def reset_alerts():
+    """Called by camera service on startup to clear stale frontend state."""
+    for q in alert_queues:
+        await q.put({"_type": "reset"})
+    return {"status": "reset sent", "clients": len(alert_queues)}
 
 
 @notification_router.get("/test")

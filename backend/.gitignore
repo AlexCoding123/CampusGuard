@@ -5,4 +5,9 @@ __pycache__
 node_modules/
 static/
 incidents/
+<<<<<<< HEAD
 temp_clips/
+=======
+temp_clips/
+.DS_Store
+>>>>>>> 2e8ec512f48b63871bf0320d4a3a08624d7c7d4e

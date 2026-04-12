@@ -1,5 +1,3 @@
-import asyncio
-import json
 import socket
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -12,23 +10,21 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
-from opencv_service import process_worker_single
+from opencv_service import process_worker_single, clear_incident_dirs
 
 load_dotenv()
 
-# --- CLIP RECORDING FROM PHONE FRAMES ---
-frame_buffer = []
+# --- PER-SESSION STATE ---
+# sid -> {"frames": [], "last_clip_time": float}
+phone_sessions: dict = {}
 clip_number = 0
-last_clip_time = time.time()
 executor = ThreadPoolExecutor(max_workers=5)
 
-# 1. Setup Socket.IO AsyncServer
-# We use 'asyncio' mode for FastAPI compatibility
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 app = FastAPI()
-# Combine FastAPI and Socket.IO into one application
 socket_app = socketio.ASGIApp(sio, app)
 
+clear_incident_dirs()
 
 def get_local_ip():
     try:
@@ -43,7 +39,9 @@ def get_local_ip():
 
 LOCAL_IP = get_local_ip()
 
-# --- HTML TEMPLATES (Kept exactly as your original) ---
+# ---------------------------------------------------------------------------
+# Phone page — what the phone opens in its browser
+# ---------------------------------------------------------------------------
 PHONE_PAGE = """
 <!DOCTYPE html>
 <html>
@@ -53,115 +51,130 @@ PHONE_PAGE = """
   <style>
     body { margin:0; background:#111; display:flex; flex-direction:column;
            align-items:center; justify-content:center; height:100vh; font-family:sans-serif; }
-    h2 { color:#fff; }
+    h2 { color:#fff; margin-bottom:8px; }
     video { width:100%; max-width:480px; border-radius:8px; }
-    #status { color:lime; margin-top:12px; font-size:1em; }
+    #status { margin-top:12px; font-size:1em; color:lime; text-align:center; padding:0 16px; }
   </style>
 </head>
 <body>
   <h2>CampusGuard Camera</h2>
   <video id="video" autoplay playsinline muted></video>
-  <p id="status">Waiting...</p>
+  <p id="status">Starting camera...</p>
+
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
-    const socket = io({ transports: ['websocket'] });
-    const status = document.getElementById('status');
     const video  = document.getElementById('video');
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    const status = document.getElementById('status');
 
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: 1280, height: 720 }, audio: false
-    }).then(stream => {
-      video.srcObject = stream;
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
-      status.textContent = 'Camera ready. Waiting for viewer...';
-    }).catch(err => { status.textContent = 'Camera error: ' + err; status.style.color='red'; });
-
-    socket.on('viewer_ready', async () => {
-      status.textContent = 'Viewer connected!';
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket.emit('offer', offer);
-    });
-
-    socket.on('answer', async (answer) => {
-      await pc.setRemoteDescription(new RTCSessionDescription(answer));
-      status.textContent = 'Streaming live!';
-    });
-
-    socket.on('ice_candidate', async ({ candidate }) => {
-      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
-    });
-
-    pc.onicecandidate = ({ candidate }) => {
-      if (candidate) socket.emit('phone_ice', { candidate });
-    };
-
-    // Send frames to server
+    // Canvas is created once and never resized — resizing clears the canvas
+    // and is expensive on mobile.
     const canvas = document.createElement('canvas');
+    canvas.width  = 640;
+    canvas.height = 480;
     const ctx = canvas.getContext('2d');
-    setInterval(() => {
-      if (video.videoWidth === 0) return;
-      canvas.width = 640;
-      canvas.height = 480;
-      ctx.drawImage(video, 0, 0, 640, 480);
-      canvas.toBlob(blob => {
-        blob.arrayBuffer().then(buf => socket.emit('frame', buf));
-      }, 'image/jpeg', 0.7);
-    }, 200);
+
+    const socket = io({
+      transports: ['websocket'],
+      reconnectionDelay: 1000,
+      reconnectionAttempts: Infinity,
+    });
+
+    let stream     = null;
+    let frameTimer = null;
+    let sending    = false;   // back-pressure guard — skip frame if previous not sent yet
+
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      }).then(s => {
+        stream = s;
+        video.srcObject = s;
+        status.textContent = 'Camera ready.';
+        if (socket.connected) startSending();
+      }).catch(err => {
+        status.textContent = 'Camera error: ' + err;
+        status.style.color = 'red';
+      });
+    }
+
+    function startSending() {
+      if (frameTimer) return;
+      status.textContent = 'Streaming…';
+      status.style.color = 'lime';
+      frameTimer = setInterval(() => {
+        if (!socket.connected || sending || video.videoWidth === 0) return;
+        sending = true;
+        ctx.drawImage(video, 0, 0, 640, 480);
+        canvas.toBlob(blob => {
+          if (!blob) { sending = false; return; }
+          blob.arrayBuffer()
+            .then(buf => socket.emit('frame', buf))
+            .catch(() => {})
+            .finally(() => { sending = false; });
+        }, 'image/jpeg', 0.5);  // quality 0.5 — good enough for AI analysis, half the bytes
+      }, 150);  // ~6-7 FPS
+    }
+
+    function stopSending() {
+      if (frameTimer) { clearInterval(frameTimer); frameTimer = null; }
+      sending = false;
+    }
+
+    socket.on('connect', () => {
+      status.textContent = stream ? 'Reconnected — streaming.' : 'Connected.';
+      status.style.color = 'lime';
+      if (stream) startSending();
+    });
+
+    socket.on('disconnect', () => {
+      status.textContent = 'Disconnected — reconnecting…';
+      status.style.color = 'orange';
+      stopSending();
+    });
+
+    startCamera();
   </script>
 </body>
 </html>
 """
 
-
+# ---------------------------------------------------------------------------
+# Viewer page — desktop browser watching the live phone feed
+# ---------------------------------------------------------------------------
 VIEW_PAGE = """
 <!DOCTYPE html>
 <html>
 <head>
   <title>CampusGuard Live Feed</title>
   <style>
-    * { box-sizing: border-box; margin:0; padding:0; }
+    * { box-sizing:border-box; margin:0; padding:0; }
     body { background:#000; display:flex; flex-direction:column;
            align-items:center; justify-content:center; height:100vh; font-family:monospace; }
-
     .cam-wrapper { position:relative; width:100%; max-width:900px; }
-
-    video { width:100%; display:block; }
-
-    /* Top bar */
+    img { width:100%; display:block; }
     .overlay-top {
-      position:absolute; top:0; left:0; right:0;
-      padding:8px 14px;
+      position:absolute; top:0; left:0; right:0; padding:8px 14px;
       background:linear-gradient(to bottom, rgba(0,0,0,0.75), transparent);
       display:flex; justify-content:space-between; align-items:center;
     }
-    .cam-name { color:#fff; font-size:0.95em; font-weight:bold; letter-spacing:1px; }
+    .cam-name     { color:#fff; font-size:0.95em; font-weight:bold; letter-spacing:1px; }
     .cam-location { color:#bbb; font-size:0.8em; }
-
-    /* Bottom bar */
     .overlay-bottom {
-      position:absolute; bottom:0; left:0; right:0;
-      padding:8px 14px;
+      position:absolute; bottom:0; left:0; right:0; padding:8px 14px;
       background:linear-gradient(to top, rgba(0,0,0,0.75), transparent);
       display:flex; justify-content:space-between; align-items:center;
     }
     .timestamp { color:#fff; font-size:0.9em; letter-spacing:1px; }
-    .persons   { color:#00ff00; font-size:0.85em; }
-
-    /* REC dot */
     .rec { display:flex; align-items:center; gap:6px; color:#ff3333; font-size:0.85em; font-weight:bold; }
-    .rec-dot { width:10px; height:10px; border-radius:50%; background:#ff3333;
-               animation: blink 1s infinite; }
+    .rec-dot { width:10px; height:10px; border-radius:50%; background:#ff3333; animation:blink 1s infinite; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-
     #conn-status { color:gray; font-size:0.8em; margin-top:8px; }
   </style>
 </head>
 <body>
   <div class="cam-wrapper">
-    <img id="feed" style="width:100%; display:block;" />
-
+    <img id="feed" />
     <div class="overlay-top">
       <div>
         <div class="cam-name">CAM 03 — HALLWAY B</div>
@@ -169,37 +182,35 @@ VIEW_PAGE = """
       </div>
       <div class="rec"><div class="rec-dot"></div>REC</div>
     </div>
-
     <div class="overlay-bottom">
       <div class="timestamp" id="timestamp">--:--:--</div>
-      <div class="persons" id="persons">LIVE</div>
     </div>
   </div>
-  <p id="conn-status">Connecting...</p>
+  <p id="conn-status">Connecting…</p>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
-    // Live timestamp
-    function updateTime() {
+    setInterval(() => {
       const now = new Date();
-      const date = now.toLocaleDateString('en-CA');
-      const time = now.toTimeString().split(' ')[0];
-      document.getElementById('timestamp').textContent = date + '  ' + time;
-    }
-    setInterval(updateTime, 1000);
-    updateTime();
+      document.getElementById('timestamp').textContent =
+        now.toLocaleDateString('en-CA') + '  ' + now.toTimeString().split(' ')[0];
+    }, 1000);
 
     const socket = io({ transports: ['websocket'] });
-    const feed = document.getElementById('feed');
-    const conn = document.getElementById('conn-status');
+    const feed   = document.getElementById('feed');
+    const conn   = document.getElementById('conn-status');
 
-    socket.on('connect', () => {
-      conn.textContent = 'Connected. Waiting for phone...';
-    });
+    socket.on('connect',    () => { conn.textContent = 'Connected. Waiting for phone…'; });
+    socket.on('disconnect', () => { conn.textContent = 'Disconnected…'; });
 
-    socket.on('live_frame', (data) => {
+    // Reuse a single object URL, revoking the previous one to avoid memory leaks
+    let prevUrl = null;
+    socket.on('live_frame', data => {
       const blob = new Blob([data], { type: 'image/jpeg' });
-      feed.src = URL.createObjectURL(blob);
+      const url  = URL.createObjectURL(blob);
+      feed.src   = url;
+      if (prevUrl) URL.revokeObjectURL(prevUrl);
+      prevUrl = url;
       conn.textContent = '';
     });
   </script>
@@ -207,74 +218,60 @@ VIEW_PAGE = """
 </html>
 """
 
-# --- SOCKET.IO EVENTS (Using async syntax) ---
 
+# ---------------------------------------------------------------------------
+# Socket.IO events
+# ---------------------------------------------------------------------------
 
 @sio.on("connect")  # type: ignore
 async def on_connect(sid, environ):
+    phone_sessions[sid] = {"frames": [], "last_clip_time": time.time()}
     print(f"📱 Phone connected: {sid}")
 
 
 @sio.on("disconnect")  # type: ignore
 async def on_disconnect(sid):
+    # Drop any buffered frames so they don't bleed into the next session
+    phone_sessions.pop(sid, None)
     print(f"📱 Phone disconnected: {sid}")
-
-
-@sio.on("viewer_ready")  # type: ignore
-async def on_viewer_ready(sid):
-    await sio.emit("viewer_ready", skip_sid=sid)
-
-
-@sio.on("offer")  # type: ignore
-async def on_offer(sid, data):
-    await sio.emit("offer", data, skip_sid=sid)
-
-
-@sio.on("answer")  # type: ignore
-async def on_answer(sid, data):
-    await sio.emit("answer", data, skip_sid=sid)
-
-
-@sio.on("phone_ice")  # type: ignore
-async def on_phone_ice(sid, data):
-    await sio.emit("ice_candidate", data, skip_sid=sid)
-
-
-@sio.on("viewer_ice")  # type: ignore
-async def on_viewer_ice(sid, data):
-    await sio.emit("ice_candidate", data, skip_sid=sid)
-
-
-# --- FRAME CAPTURE FOR GEMINI ANALYSIS ---
 
 
 @sio.on("frame")  # type: ignore
 async def on_frame(sid, data):
-    global frame_buffer, clip_number, last_clip_time
+    global clip_number
 
-    # Decode JPEG bytes into an OpenCV frame
-    arr = np.frombuffer(data, dtype=np.uint8)
+    session = phone_sessions.get(sid)
+    if session is None:
+        return
+
+    # Forward raw JPEG to the viewer page immediately (live feed)
+    await sio.emit("live_frame", data, skip_sid=sid)
+
+    # Decode JPEG → OpenCV frame
+    arr   = np.frombuffer(data, dtype=np.uint8)
     frame = cv.imdecode(arr, cv.IMREAD_COLOR)
     if frame is None:
         return
 
-    frame_buffer.append(frame)
+    session["frames"].append(frame)
 
-    # Only cut a clip when we have at least 15 frames
-    if len(frame_buffer) >= 15:
+    # Cut a clip every 15 frames (~2 s at 6-7 FPS)
+    if len(session["frames"]) >= 15:
         clip_number += 1
-        frames = frame_buffer.copy()
-        frame_buffer.clear()
-        elapsed = time.time() - last_clip_time
-        last_clip_time = time.time()
+        frames   = session["frames"].copy()
+        elapsed  = time.time() - session["last_clip_time"]
+
+        session["frames"].clear()
+        session["last_clip_time"] = time.time()
 
         h, w = frames[0].shape[:2]
-        print(f"🔍 Analyzing clip_{clip_number} ({len(frames)} frames)...")
+        print(f"✂️  Clip {clip_number} — {len(frames)} frames from {sid[:6]}")
         executor.submit(process_worker_single, frames, clip_number, elapsed, w, h)
 
 
-# --- FASTAPI ROUTES ---
-
+# ---------------------------------------------------------------------------
+# FastAPI routes
+# ---------------------------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
@@ -286,21 +283,9 @@ async def view():
     return VIEW_PAGE
 
 
-@app.get("/events")
-async def sse_events():
-    async def stream():
-        while True:
-            try:
-                # CHECK THIS CODE I DONT KNOW IF THIS IS RIGHT
-                event = alert_queue.get_nowait()
-                yield f"data: {json.dumps(event)}\n\n"
-            except q.Empty:
-                await asyncio.sleep(0.5)
-
-    return StreamingResponse(stream(), media_type="text/event-stream")
-
 
 if __name__ == "__main__":
-    print("\n🚀 CampusGuard — Live Camera (FastAPI)")
-    print(f"📡 Local IP: http://{LOCAL_IP}:5050")
+    print("\n🚀 CampusGuard — Phone Camera")
+    print(f"📱 Phone  → http://{LOCAL_IP}:5050  (or ngrok HTTPS URL)")
+    print(f"💻 Viewer → http://{LOCAL_IP}:5050/view\n")
     uvicorn.run(socket_app, host="0.0.0.0", port=5050)
