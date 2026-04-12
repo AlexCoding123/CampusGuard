@@ -1,4 +1,4 @@
-export const API_BASE = "http://127.0.0.1:8080";
+export const API_BASE = "http://backend:8080";
 
 export const SEVERITY_CONFIG = {
   aggressive: {
