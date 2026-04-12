@@ -41,6 +41,8 @@ Phone/Webcam → camera_opener.py (port 5050)
 
 > **No system FFmpeg required.** The Python package `imageio[ffmpeg]` bundles its own.
 
+> **Linux / headless server:** The backend uses `opencv-python-headless` — no display, GTK, or Qt dependencies needed. It runs fine on a VM with no monitor.
+
 ---
 
 ## Setup
@@ -102,14 +104,20 @@ Serves the alert API and streams events to the dashboard via SSE.
 
 ### Terminal 2 — Camera Service
 
-**Option A: Use your webcam**
+**Option A: Use your webcam (or a video file)**
 
 ```bash
 cd backend
 uv run python camera_service.py
 ```
 
-A window titled "CCTV Feed" will open. Press `q` to stop.
+Runs headless — no display window. Press `Ctrl+C` to stop.
+
+To use a video file instead of a webcam, edit the last line of `camera_service.py`:
+
+```python
+start_capture('path/to/video.mp4')  # instead of start_capture()
+```
 
 **Option B: Use your phone as a camera**
 
