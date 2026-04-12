@@ -1,6 +1,6 @@
 # CampusGuard — AI Fight Detection System
 
-CampusGuard is a real-time school security system that analyzes live camera feeds using Google Gemini 2.0 Flash to detect and classify violent incidents. When a fight is detected, it saves a video clip and immediately pushes an alert to a live web dashboard and a mobile app.
+CampusGuard is a real-time school security system that analyzes live camera feeds using Google Gemini 2.0 Flash to detect and classify violent incidents. When a fight is detected, it saves a video clip and immediately pushes an alert to a live web dashboard and a mobile app. It also detects critical moments when student life could be a danger such as a seizure.
 
 ---
 
