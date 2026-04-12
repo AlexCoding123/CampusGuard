@@ -3,3 +3,5 @@
 __pycache__
 videos
 .vscode
+node_modules/
+static/

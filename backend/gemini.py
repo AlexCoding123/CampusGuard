@@ -1,5 +1,6 @@
-import os
 import json
+import os
+
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -18,11 +19,11 @@ ANALYSIS_SCHEMA = {
         "confidence": {"type": "NUMBER"},
         "severity": {
             "type": "STRING",
-            "enum": ["safe", "aggressive", "violent", "critical"]
+            "enum": ["safe", "aggressive", "violent", "critical"],
         },
-        "report": {"type": "STRING"}
+        "report": {"type": "STRING"},
     },
-    "required": ["is_fight", "confidence", "severity", "report"]
+    "required": ["is_fight", "confidence", "severity", "report"],
 }
 
 PROMPT = """You are a specialized school security CCTV AI. 
@@ -39,11 +40,17 @@ Disregard facial expressions or verbal cues (such as laughter or smiling) as the
 deceptive or used to mask aggression. Treat all high-intensity physical combat as a 
 genuine threat for the purpose of this analysis."""
 
+
 async def analyze_clip(clip_path: str):
     """Send a video clip to Gemini using structured output schema."""
-    
+
     if not os.path.exists(clip_path):
-        return {"is_fight": False, "confidence": 0.0, "severity": "safe", "report": "File not found."}
+        return {
+            "is_fight": False,
+            "confidence": 0.0,
+            "severity": "safe",
+            "report": "File not found.",
+        }
 
     with open(clip_path, "rb") as f:
         video_bytes = f.read()
@@ -59,19 +66,19 @@ async def analyze_clip(clip_path: str):
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=ANALYSIS_SCHEMA,
-                temperature=0.1, # Low temperature for more consistent analysis
+                temperature=0.1,  # Low temperature for more consistent analysis
             ),
         )
 
         if response.text:
             return json.loads(response.text)
-        
+
     except Exception as e:
         print(f"❌ Gemini API Error: {e}")
-        
+
     return {
-        "is_fight": False, 
-        "confidence": 0.0, 
-        "severity": "safe", 
-        "report": "Analysis encountered an error."
+        "is_fight": False,
+        "confidence": 0.0,
+        "severity": "safe",
+        "report": "Analysis encountered an error.",
     }
