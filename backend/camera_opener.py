@@ -1,11 +1,9 @@
 import asyncio
 import json
 import os
-import queue
-import queue as q
 import socket
-import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import cv2 as cv
 import numpy as np
@@ -14,7 +12,8 @@ import uvicorn
 from opencv_service import process_worker_single
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse
+
 
 load_dotenv()
 
@@ -22,13 +21,7 @@ load_dotenv()
 frame_buffer = []
 clip_number = 0
 last_clip_time = time.time()
-
-# Start multiple AI worker threads so clips process in parallel
-os.makedirs("videos", exist_ok=True)
-job_queue = queue.Queue()
-for i in range(3):
-    t = threading.Thread(target=process_worker_single, args=(job_queue,), daemon=True)
-    t.start()
+executor = ThreadPoolExecutor(max_workers=5)
 
 # 1. Setup Socket.IO AsyncServer
 # We use 'asyncio' mode for FastAPI compatibility
@@ -277,8 +270,8 @@ async def on_frame(sid, data):
         last_clip_time = time.time()
 
         h, w = frames[0].shape[:2]
-        print(f"[CLIP] Buffered {len(frames)} frames, sending to worker...")
-        job_queue.put((frames, clip_number, elapsed, w, h))
+        print(f"🔍 Analyzing clip_{clip_number} ({len(frames)} frames)...")
+        executor.submit(process_worker_single, frames, clip_number, elapsed, w, h)
 
 
 # --- FASTAPI ROUTES ---
