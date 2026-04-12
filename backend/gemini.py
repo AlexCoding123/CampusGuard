@@ -1,45 +1,77 @@
-import json
 import os
-
+import json
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Initialize client once at the module level
+client = genai.Client()
 
-PROMPT = """You are a school security CCTV monitoring system. Analyze this video clip and determine if a physical fight or altercation is happening.
-Respond in this exact JSON format:
-{
-  "is_fight": true or false,
-  "confidence": 0.0 to 1.0,
-  "report": "If a fight is detected, write a brief incident report describing the individuals involved (clothing, actions, setting). If no fight, write 'No incident detected.'"
+# Define the structured schema
+# This tells Gemini exactly what keys and types to return
+ANALYSIS_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "is_fight": {"type": "BOOLEAN"},
+        "confidence": {"type": "NUMBER"},
+        "severity": {
+            "type": "STRING",
+            "enum": ["safe", "aggressive", "violent", "critical"]
+        },
+        "report": {"type": "STRING"}
+    },
+    "required": ["is_fight", "confidence", "severity", "report"]
 }
-Only respond with the JSON, nothing else."""
 
+PROMPT = """You are a specialized school security CCTV AI. 
+Analyze the video clip for physical altercations. 
+
+SEVERITY LEVELS:
+- safe: No threat, normal activity, or non-combative interaction.
+- aggressive: Pushing, wrestling, or a standard fist fight.
+- violent: Choking, head-kicking, or attacks likely to cause serious injury.
+- critical: Use of weapons (knife, gun) or life-threatening assault.
+
+CRITICAL INSTRUCTION: Analyze the physical mechanics, contact, and intensity of the movements. 
+Disregard facial expressions or verbal cues (such as laughter or smiling) as these can be 
+deceptive or used to mask aggression. Treat all high-intensity physical combat as a 
+genuine threat for the purpose of this analysis."""
 
 async def analyze_clip(clip_path: str):
-    """Send a video clip to Gemini and return fight analysis."""
+    """Send a video clip to Gemini using structured output schema."""
+    
+    if not os.path.exists(clip_path):
+        return {"is_fight": False, "confidence": 0.0, "severity": "safe", "report": "File not found."}
+
     with open(clip_path, "rb") as f:
         video_bytes = f.read()
 
-    client = genai.Client()
-    response = client.models.generate_content(
-        model="gemini-3-flash-preview",
-        contents=types.Content(
-            parts=[
-                types.Part(
-                    inline_data=types.Blob(data=video_bytes, mime_type="video/mp4")
-                ),
-                types.Part(text=PROMPT),
-            ]
-        ),
-    )
-
     try:
+        # Note: model name might vary by tier, using flash for speed/cost
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=[
+                types.Part.from_bytes(data=video_bytes, mime_type="video/mp4"),
+                types.Part.from_text(text=PROMPT),
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=ANALYSIS_SCHEMA,
+                temperature=0.1, # Low temperature for more consistent analysis
+            ),
+        )
+
         if response.text:
-            result = json.loads(response.text)
-            return result
-    except json.JSONDecodeError:
-        result = {"is_fight": False, "confidence": 0.0, "report": "Analysis failed."}
+            return json.loads(response.text)
+        
+    except Exception as e:
+        print(f"❌ Gemini API Error: {e}")
+        
+    return {
+        "is_fight": False, 
+        "confidence": 0.0, 
+        "severity": "safe", 
+        "report": "Analysis encountered an error."
+    }
