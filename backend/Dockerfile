@@ -54,16 +54,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # STAGE 5: Production Runner
 # ==========================================
 FROM base AS final
-RUN groupadd --system --gid 999 nonroot \
-    && useradd --system --gid 999 --uid 999 --create-home nonroot
-
-COPY --from=prod-builder --chown=nonroot:nonroot /app /app
-COPY --chown=nonroot:nonroot entrypoint.sh /app/entrypoint.sh
 
 RUN chmod +x /app/entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-USER nonroot
 
 ENTRYPOINT ["/app/entrypoint.sh"]
