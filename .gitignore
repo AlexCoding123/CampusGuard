@@ -10,3 +10,5 @@ __pycache__/
 .env
 *node_modules/
 *env/
+.idea
+.ddat_tool

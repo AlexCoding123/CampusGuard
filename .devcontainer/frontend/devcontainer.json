@@ -1,0 +1,40 @@
+{
+    "name": "Frontend Service",
+    "dockerComposeFile": "../../docker-compose.yaml",
+    "service": "frontend",
+    "workspaceFolder": "/app",
+    "features": {
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/devcontainers/features/git:1": {},
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "configureZshAsDefaultShell": true
+        }
+    },
+    "forwardPorts": [5173],
+    
+    "remoteUser": "node",
+
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "editor.defaultFormatter": "esbenp.prettier-vscode",
+                "editor.formatOnSave": true,
+                "editor.codeActionsOnSave": {
+                    "source.fixAll.eslint": "explicit"
+                },
+                "terminal.integrated.defaultProfile.linux": "zsh"
+            },
+            "extensions": [
+                "dbaeumer.vscode-eslint",          // Linting
+                "esbenp.prettier-vscode",        // Formatting
+                "bradlc.vscode-tailwindcss",     // CSS Intellisense (if using Tailwind)
+                "dsznajder.es7-react-js-snippets", // Rapid component creation
+                "christian-kohler.path-intellisense",
+                "pkief.material-icon-theme"      // Visual clarity for files
+            ]
+        }
+    },
+
+    // Ensure permissions are correct after the container starts
+    "postCreateCommand": "sudo chown -R node node_modules"
+}

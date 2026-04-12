@@ -10,5 +10,15 @@ services:
       - /app/.venv
     ports:
       - "8000:8000"
-      - "5000:5000"
-      
+      - "5050:5050"
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    command: "sleep infinity"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
