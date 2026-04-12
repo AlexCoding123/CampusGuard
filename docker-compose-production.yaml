@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
       target: camera_opener_final
     volumes:
-      - ./backend:/app
+      - incidents:/app/incidents
 
   opencv_service:
     build:
@@ -13,10 +13,13 @@ services:
       dockerfile: Dockerfile
       target: opencv_service_final
     volumes:
-      - ./backend:/app
+      - incidents:/app/incidents
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       target: production
+
+volumes:
+  incidents:

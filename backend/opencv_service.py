@@ -74,8 +74,6 @@ def process_worker_single(frames, clip_number, duration, width, height):
 
 
 def start_capture(source=0):
-    os.makedirs("videos", exist_ok=True)
-
     # Initialize the threaded stream
     stream = CameraStream(source).start()
     width = int(stream.cap.get(cv.CAP_PROP_FRAME_WIDTH))

@@ -11,7 +11,7 @@ import cv2 as cv
 import numpy as np
 import socketio
 import uvicorn
-from backend.opencv_service import process_worker
+from opencv_service import process_worker_single
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -27,7 +27,7 @@ last_clip_time = time.time()
 os.makedirs("videos", exist_ok=True)
 job_queue = queue.Queue()
 for i in range(3):
-    t = threading.Thread(target=process_worker, args=(job_queue,), daemon=True)
+    t = threading.Thread(target=process_worker_single, args=(job_queue,), daemon=True)
     t.start()
 
 # 1. Setup Socket.IO AsyncServer
@@ -310,5 +310,5 @@ async def sse_events():
 
 if __name__ == "__main__":
     print("\n🚀 CampusGuard — Live Camera (FastAPI)")
-    print(f"📡 Local IP: http://{LOCAL_IP}:5000")
+    print(f"📡 Local IP: http://{LOCAL_IP}:5050")
     uvicorn.run(socket_app, host="0.0.0.0", port=5050)
