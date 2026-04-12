@@ -62,6 +62,4 @@ RUN chmod +x /app/entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-USER nonroot
-
 ENTRYPOINT ["/app/entrypoint.sh"]
