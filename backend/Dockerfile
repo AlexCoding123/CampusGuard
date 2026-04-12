@@ -55,7 +55,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ==========================================
 FROM base AS final
 
-RUN chmod +x /app/entrypoint.sh
+RUN /app/entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 
