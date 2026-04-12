@@ -7,10 +7,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:?}
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: production
+    image: amirrezamojtahedi/campusguard-dashboard:latest
 
 volumes:
   incidents:
