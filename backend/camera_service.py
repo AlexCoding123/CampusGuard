@@ -1,11 +1,11 @@
 import asyncio
 import os
 import queue
-import subprocess
 import threading
 import time
 
 import cv2 as cv
+import imageio
 
 from gemini import analyze_clip
 
@@ -44,23 +44,6 @@ class CameraStream:
         self.cap.release()
 
 
-def reencode_h264(input_path: str, output_path: str) -> bool:
-    """Re-encode to H.264 MP4 with faststart for browser compatibility."""
-    try:
-        result = subprocess.run(
-            [
-                "ffmpeg", "-y", "-i", input_path,
-                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                "-pix_fmt", "yuv420p",
-                "-movflags", "+faststart",
-                output_path,
-            ],
-            capture_output=True,
-            timeout=120,
-        )
-        return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
 
 
 def process_worker(job_queue):
@@ -81,22 +64,20 @@ def process_worker(job_queue):
             f"📦 Packaging clip {clip_number} ({len(frames)} frames @ {actual_fps:.1f} FPS)..."
         )
 
-        # 1. Write to temp directory for Gemini
+        # 1. Write H.264 MP4 via imageio-ffmpeg (bundles its own FFmpeg binary —
+        #    no system FFmpeg or openh264 DLL required). H.264 is needed so
+        #    Firefox and Vivaldi can play the clip in a <video> element.
         os.makedirs("temp_clips", exist_ok=True)
-        fourcc = cv.VideoWriter_fourcc(*"mp4v")
         safe_fps = min(60.0, max(1.0, float(actual_fps)))
-        writer = cv.VideoWriter(temp_path, fourcc, safe_fps, (width, height))
-        for frame in frames:
-            writer.write(frame)
-        writer.release()
-
-        # Re-encode to H.264 + faststart so browsers (Firefox, Vivaldi) can play it
-        h264_path = temp_path.replace(".mp4", "_web.mp4")
-        if reencode_h264(temp_path, h264_path):
-            os.remove(temp_path)
-            temp_path = h264_path
-        else:
-            print("⚠️  FFmpeg not found — video may not play in Firefox/Vivaldi")
+        import imageio
+        with imageio.get_writer(
+            temp_path,
+            fps=safe_fps,
+            codec="libx264",
+            output_params=["-pix_fmt", "yuv420p", "-crf", "23", "-preset", "fast"],
+        ) as vid_writer:
+            for frame in frames:
+                vid_writer.append_data(frame[:, :, ::-1])  # BGR → RGB
 
         # 2. Send to Gemini
         print(f"🚀 [UPLOAD] Sending {temp_path} to Gemini...")
@@ -142,6 +123,12 @@ def start_capture(source=0):
     os.makedirs("temp", exist_ok=True)
     _clear_dir("incidents")
     _clear_dir("temp_clips")
+
+    # Tell connected frontends to clear stale alerts from any previous run
+    try:
+        httpx.post("http://127.0.0.1:8080/alerts/reset", timeout=2)
+    except Exception:
+        pass  # Server may not be up yet; frontend will reconnect fresh anyway
 
     # Initialize the threaded stream
     stream = CameraStream(source).start()
