@@ -1,5 +1,9 @@
+import os
 import socket
+import time
 
+import cv2 as cv
+import numpy as np
 import socketio
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -8,7 +12,15 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 import asyncio, json, queue as q
 from shared import alert_queue
 
+from gemini import analyze_clip
+
 load_dotenv()
+
+# --- CLIP RECORDING FROM PHONE FRAMES ---
+CLIP_DURATION = 5
+frame_buffer = []
+clip_number = 0
+last_clip_time = time.time()
 
 # 1. Setup Socket.IO AsyncServer
 # We use 'asyncio' mode for FastAPI compatibility
@@ -84,6 +96,19 @@ PHONE_PAGE = """
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) socket.emit('phone_ice', { candidate });
     };
+
+    // Send frames to server
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    setInterval(() => {
+      if (video.videoWidth === 0) return;
+      canvas.width = 1280;
+      canvas.height = 720;
+      ctx.drawImage(video, 0, 0, 1280, 720);
+      canvas.toBlob(blob => {
+        blob.arrayBuffer().then(buf => socket.emit('frame', buf));
+      }, 'image/jpeg', 0.85);
+    }, 200);
   </script>
 </body>
 </html>
@@ -135,7 +160,7 @@ VIEW_PAGE = """
 </head>
 <body>
   <div class="cam-wrapper">
-    <video id="feed" autoplay playsinline muted></video>
+    <img id="feed" style="width:100%; display:block;" />
 
     <div class="overlay-top">
       <div>
@@ -157,43 +182,25 @@ VIEW_PAGE = """
     // Live timestamp
     function updateTime() {
       const now = new Date();
-      const date = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
+      const date = now.toLocaleDateString('en-CA');
       const time = now.toTimeString().split(' ')[0];
       document.getElementById('timestamp').textContent = date + '  ' + time;
     }
     setInterval(updateTime, 1000);
     updateTime();
 
-    // WebRTC
     const socket = io({ transports: ['websocket'] });
-    const feed   = document.getElementById('feed');
-    const conn   = document.getElementById('conn-status');
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-
-    pc.ontrack = (e) => {
-      feed.srcObject = e.streams[0];
-      conn.textContent = '';
-      document.getElementById('persons').textContent = 'LIVE';
-    };
-
-    pc.onicecandidate = ({ candidate }) => {
-      if (candidate) socket.emit('viewer_ice', { candidate });
-    };
+    const feed = document.getElementById('feed');
+    const conn = document.getElementById('conn-status');
 
     socket.on('connect', () => {
       conn.textContent = 'Connected. Waiting for phone...';
-      socket.emit('viewer_ready');
     });
 
-    socket.on('offer', async (offer) => {
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket.emit('answer', answer);
-    });
-
-    socket.on('ice_candidate', async ({ candidate }) => {
-      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
+    socket.on('live_frame', (data) => {
+      const blob = new Blob([data], { type: 'image/jpeg' });
+      feed.src = URL.createObjectURL(blob);
+      conn.textContent = '';
     });
   </script>
 </body>
@@ -203,30 +210,101 @@ VIEW_PAGE = """
 # --- SOCKET.IO EVENTS (Using async syntax) ---
 
 
+@sio.on("connect")  # type: ignore
+async def on_connect(sid, environ):
+    print(f"[SOCKET] Client connected: {sid}")
+
+
+@sio.on("disconnect")  # type: ignore
+async def on_disconnect(sid):
+    print(f"[SOCKET] Client disconnected: {sid}")
+
+
 @sio.on("viewer_ready")  # type: ignore
 async def on_viewer_ready(sid):
-    # Emit to all (broadcast) that the viewer is ready
-    await sio.emit("viewer_ready")
+    print(f"[SIGNAL] Viewer ready (from {sid})")
+    await sio.emit("viewer_ready", skip_sid=sid)
 
 
 @sio.on("offer")  # type: ignore
 async def on_offer(sid, data):
-    await sio.emit("offer", data)
+    print(f"[SIGNAL] Offer received (from {sid})")
+    await sio.emit("offer", data, skip_sid=sid)
 
 
 @sio.on("answer")  # type: ignore
 async def on_answer(sid, data):
-    await sio.emit("answer", data)
+    print(f"[SIGNAL] Answer received (from {sid})")
+    await sio.emit("answer", data, skip_sid=sid)
 
 
 @sio.on("phone_ice")  # type: ignore
 async def on_phone_ice(sid, data):
-    await sio.emit("ice_candidate", data)
+    print(f"[ICE] Phone ICE candidate (from {sid})")
+    await sio.emit("ice_candidate", data, skip_sid=sid)
 
 
 @sio.on("viewer_ice")  # type: ignore
 async def on_viewer_ice(sid, data):
-    await sio.emit("ice_candidate", data)
+    print(f"[ICE] Viewer ICE candidate (from {sid})")
+    await sio.emit("ice_candidate", data, skip_sid=sid)
+
+
+# --- FRAME CAPTURE FOR GEMINI ANALYSIS ---
+
+
+@sio.on("frame")  # type: ignore
+async def on_frame(sid, data):
+    global frame_buffer, clip_number, last_clip_time
+
+    # Decode JPEG bytes into an OpenCV frame
+    arr = np.frombuffer(data, dtype=np.uint8)
+    frame = cv.imdecode(arr, cv.IMREAD_COLOR)
+    if frame is None:
+        return
+
+    frame_buffer.append(frame)
+    if len(frame_buffer) % 10 == 1:
+        print(f"[FRAME] Receiving frames... ({len(frame_buffer)} buffered)")
+
+    # Every 5 seconds, save clip and send to Gemini
+    # Only cut a clip when we have at least 15 frames (enough for a real video)
+    if len(frame_buffer) >= 15:
+        clip_number += 1
+        frames = frame_buffer.copy()
+        frame_buffer.clear()
+        last_clip_time = time.time()
+
+        print(f"[CLIP] Buffered {len(frames)} frames, saving clip_{clip_number}...")
+        sio.start_background_task(save_and_analyze, frames, clip_number)
+
+
+async def save_and_analyze(frames, clip_num):
+    """Write frames to video file and send to Gemini for analysis."""
+    os.makedirs("videos", exist_ok=True)
+    clip_path = f"videos/clip_{clip_num}.mp4"
+
+    h, w = frames[0].shape[:2]
+    fps = max(1.0, len(frames) / CLIP_DURATION)
+    fourcc = cv.VideoWriter_fourcc(*"mp4v")
+    writer = cv.VideoWriter(clip_path, fourcc, fps, (w, h))
+    for f in frames:
+        writer.write(f)
+    writer.release()
+
+    print(f"[CLIP] Saved {clip_path} ({len(frames)} frames, {fps:.1f} FPS)")
+
+    try:
+        result = await analyze_clip(clip_path)
+        severity = result.get("severity", "safe")
+        report = result.get("report", "")
+
+        if result.get("is_fight"):
+            print(f"[ALERT] {clip_path}: {severity.upper()} — {report}")
+        else:
+            print(f"[CLEAR] {clip_path}: {report}")
+    except Exception as e:
+        print(f"[ERROR] Gemini analysis failed: {e}")
 
 
 # --- FASTAPI ROUTES ---
@@ -261,4 +339,4 @@ if __name__ == "__main__":
     print("💻 Viewer → http://localhost:5000/view\n")
 
     # We run 'socket_app' (the wrapped app) instead of 'app'
-    uvicorn.run(socket_app, host="0.0.0.0", port=5000)
+    uvicorn.run(socket_app, host="0.0.0.0", port=5050)
