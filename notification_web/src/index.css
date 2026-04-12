@@ -1,0 +1,39 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+}
+
+html, body, #root {
+  height: 100%;
+  height: 100dvh;
+}
+
+body {
+  background: #05080f;
+  color: #c8d8e8;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #0a1018; }
+::-webkit-scrollbar-thumb { background: #1e3a5a; border-radius: 2px; }
+
+@keyframes flashIn     { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeIn      { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modalIn     { from { opacity: 0; transform: translateY(20px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes sheetIn     { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes slideIn     { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@keyframes borderPulse { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes textFlicker { 0%, 100% { opacity: 1; } 25% { opacity: 0.5; } 75% { opacity: 0.8; } }
+@keyframes scanLine    { from { transform: translateY(-100%); } to { transform: translateY(100%); } }
+@keyframes blink       { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+@keyframes tickerSlide { from { transform: translateX(100%); } to { transform: translateX(-100%); } }
+@keyframes gridFade    { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

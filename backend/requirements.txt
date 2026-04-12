@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-socketio
+opencv-python
+google-genai
+python-multipart
+sqlalchemy
+aiosqlite
+httpx
+python-dotenv

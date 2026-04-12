@@ -78,13 +78,14 @@ def process_worker(job_queue):
 
             report = result.get("report")
             if result.get("is_fight"):
-                alert_queue.put({ ## To actually send alert 
-                    "type": "alert",
+                httpx.post("http://127.0.0.1:8080/alerts/send", json={
+                    "group_id": "1",
                     "severity": result.get("severity"),
-                    "confidence": result.get("confidence"),
-                    "report": result.get("report"),
-                    "clip": clip_path,
-                    "timestamp": time.time()
+                    "confidence": round(float(result.get("confidence", 0.5)), 2),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "location": "Camera 1 - Main Entrance",
+                    "video_url": clip_path,
+                    "report": result.get("report", ""),
                 })
                 severity = result.get("severity")
                 if severity == "critical":
