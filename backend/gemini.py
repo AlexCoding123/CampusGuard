@@ -19,28 +19,26 @@ ANALYSIS_SCHEMA = {
         "confidence": {"type": "NUMBER"},
         "severity": {
             "type": "STRING",
-            "enum": ["safe", "aggressive", "violent", "critical"],
+            "enum": ["safe", "violent"],
         },
         "report": {"type": "STRING"},
     },
     "required": ["is_fight", "confidence", "severity", "report"],
 }
 
-PROMPT = """You are a school security CCTV monitoring AI. Your job is to ACCURATELY describe what is happening in the video.
+PROMPT = """You are a school security CCTV monitoring AI. Analyze the video and determine if any physical altercation is occurring.
 
-IMPORTANT: Most clips will show NORMAL, safe activity (students sitting, walking, talking, studying).
-Only flag something as a fight if you can clearly see physical contact with aggressive intent
-(punching, kicking, shoving, choking, wrestling).
+SAFE: People sitting, standing, walking, talking, studying, or having calm interactions.
 
-Do NOT hallucinate or assume violence. If people are just sitting, standing, or talking, that is SAFE.
+VIOLENT: Any physical contact between people that resembles fighting, wrestling, punching,
+shoving, grabbing, choking, or restraining — even if it appears playful or consensual.
+A real security system cannot distinguish play-fighting from real fighting, so treat ALL
+physical combat-like contact as violent.
 
-SEVERITY LEVELS:
-- safe: Normal activity — sitting, walking, talking, studying, standing around.
-- aggressive: Clear pushing, shoving, or a fist fight.
-- violent: Choking, head-kicking, or attacks likely to cause serious injury.
-- critical: Use of weapons (knife, gun) or life-threatening assault.
+If people are not touching each other or are just talking, it is SAFE.
+If there is any physical contact that looks like fighting or wrestling, it is VIOLENT.
 
-Set is_fight to false and severity to "safe" unless you see CLEAR physical aggression."""
+Do NOT assume violence when no physical contact is visible."""
 
 
 async def analyze_clip(clip_path: str):
