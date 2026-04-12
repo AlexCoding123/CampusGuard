@@ -1,19 +1,21 @@
+import asyncio
+import json
 import os
 import queue
+import queue as q
 import socket
 import threading
 import time
 
 import cv2 as cv
-import uvicorn
 import numpy as np
 import socketio
+import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, StreamingResponse
-import asyncio, json, queue as q
 
-from camera_service import process_worker
+from backend.opencv_service import process_worker
 
 load_dotenv()
 
@@ -298,6 +300,7 @@ async def index():
 async def view():
     return VIEW_PAGE
 
+
 @app.get("/events")
 async def sse_events():
     async def stream():
@@ -308,13 +311,11 @@ async def sse_events():
                 yield f"data: {json.dumps(event)}\n\n"
             except q.Empty:
                 await asyncio.sleep(0.5)
+
     return StreamingResponse(stream(), media_type="text/event-stream")
+
 
 if __name__ == "__main__":
     print("\n🚀 CampusGuard — Live Camera (FastAPI)")
     print(f"📡 Local IP: http://{LOCAL_IP}:5000")
-    print("📱 Phone  → open ngrok HTTPS URL in phone browser")
-    print("💻 Viewer → http://localhost:5000/view\n")
-
-    # We run 'socket_app' (the wrapped app) instead of 'app'
     uvicorn.run(socket_app, host="0.0.0.0", port=5050)

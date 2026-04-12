@@ -1,0 +1,22 @@
+services:
+  camera_opener:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: camera_opener_final
+    volumes:
+      - ./backend:/app
+
+  opencv_service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: opencv_service_final
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production

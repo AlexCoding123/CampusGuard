@@ -3,14 +3,12 @@ import os
 import queue
 import threading
 import time
+from datetime import UTC, datetime
 
 import cv2 as cv
+import httpx
 
 from gemini import analyze_clip
-
-import httpx
-from datetime import datetime, timezone
-
 
 # --- CONFIGURATION ---
 CLIP_DURATION = 5
@@ -83,15 +81,18 @@ def process_worker(job_queue):
                 incident_path = f"incidents/clip_{clip_number}.mp4"
                 os.rename(temp_path, incident_path)
                 print(f"🚨 {incident_path}: VIOLENT — {report}\n")
-                httpx.post("http://127.0.0.1:8080/alerts/send", json={
-                    "group_id": "1",
-                    "severity": result.get("severity"),
-                    "confidence": round(float(result.get("confidence", 0.5)), 2),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "location": "Camera 1 - Main Entrance",
-                    "video_url": incident_path,
-                    "report": result.get("report", ""),
-                })
+                httpx.post(
+                    "http://127.0.0.1:8080/alerts/send",
+                    json={
+                        "group_id": "1",
+                        "severity": result.get("severity"),
+                        "confidence": round(float(result.get("confidence", 0.5)), 2),
+                        "timestamp": datetime.now(UTC).isoformat(),
+                        "location": "Camera 1 - Main Entrance",
+                        "video_url": incident_path,
+                        "report": result.get("report", ""),
+                    },
+                )
             else:
                 os.remove(temp_path)
                 print(f"✅ Clear: clip_{clip_number} — {report}\n")
