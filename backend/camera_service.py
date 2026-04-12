@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 
 # --- CONFIGURATION ---
-CLIP_DURATION = 5
+CLIP_DURATION = 3
 
 # --- INCIDENT GROUP TRACKING ---
 _group_id           = 0
@@ -88,7 +88,7 @@ class CameraStream:
         self.cap.release()
 
 
-def process_worker_single(frames, clip_number, duration, width, height):
+def process_worker_single(frames, clip_number, duration):
     """Process a single clip in its own thread.
 
     Fast path: send raw frames as JPEG images to Gemini (no video encoding).
@@ -148,7 +148,7 @@ def _clear_dir(path: str):
 def start_capture(source=0):
     os.makedirs("temp", exist_ok=True)
     _clear_dir("incidents")
-    _clear_dir("temp_ clips")
+    _clear_dir("temp_clips")
 
     # Tell connected frontends to clear stale alerts from any previous run
     try:
@@ -158,43 +158,48 @@ def start_capture(source=0):
 
     # Initialize the threaded stream
     stream = CameraStream(source).start()
-    width = int(stream.cap.get(cv.CAP_PROP_FRAME_WIDTH))
-    height = int(stream.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
 
     executor = ThreadPoolExecutor(max_workers=5)
     clip_number = 0
     frames_buffer = []
     start_time = time.time()
+    last_frame_time = 0.0
+    CAPTURE_FPS = 15                      # frames to collect per second
+    FRAME_INTERVAL = 1.0 / CAPTURE_FPS   # ~67 ms between captured frames
 
-    print("🎥 CCTV Started. Press 'q' to stop.")
+    print("🎥 CCTV Started. Press Ctrl+C to stop.")
 
-    while True:
-        frame = stream.read()
-        if frame is None:
-            break
+    try:
+        while True:
+            now = time.time()
+            if now - last_frame_time < FRAME_INTERVAL:
+                time.sleep(0.005)         # yield CPU, check again in 5 ms
+                continue
 
-        frames_buffer.append(frame)
-        elapsed_time = time.time() - start_time
+            frame = stream.read()
+            if frame is None:
+                break
 
-        if elapsed_time >= CLIP_DURATION:
-            clip_number += 1
+            last_frame_time = now
+            frames_buffer.append(frame)
+            elapsed_time = now - start_time
 
-            executor.submit(
-                process_worker_single,
-                frames_buffer.copy(), clip_number, elapsed_time, width, height,
-            )
+            if elapsed_time >= CLIP_DURATION:
+                clip_number += 1
 
-            frames_buffer.clear()
-            start_time = time.time()
+                executor.submit(
+                    process_worker_single,
+                    frames_buffer.copy(), clip_number, elapsed_time,
+                )
 
-        cv.imshow("CCTV Feed", frame)
+                frames_buffer.clear()
+                start_time = time.time()
 
-        if cv.waitKey(33) == ord("q"):
-            break
+    except KeyboardInterrupt:
+        pass
 
     print("\nShutting down camera feed...")
     stream.stop()
-    cv.destroyAllWindows()
     print("👋 System exited safely.")
 
 

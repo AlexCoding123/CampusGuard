@@ -264,9 +264,8 @@ async def on_frame(sid, data):
         session["frames"].clear()
         session["last_clip_time"] = time.time()
 
-        h, w = frames[0].shape[:2]
         print(f"✂️  Clip {clip_number} — {len(frames)} frames from {sid[:6]}")
-        executor.submit(process_worker_single, frames, clip_number, elapsed, w, h)
+        executor.submit(process_worker_single, frames, clip_number, elapsed)
 
 
 # ---------------------------------------------------------------------------
