@@ -124,7 +124,7 @@ def process_worker_single(frames, clip_number, duration):
 
             print(f"🚨 {incident_path}: VIOLENT (group {group_id}) — {report}\n")
             httpx.post(
-                "http://127.0.0.1:8080/alerts/send",
+                "https://sse.campusguard.tech/alerts/send",
                 json={
                     "group_id": group_id,
                     "severity": severity,

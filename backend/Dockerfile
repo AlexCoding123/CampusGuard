@@ -65,4 +65,4 @@ ENTRYPOINT ["python", "-m", "camera_opener"]
 
 FROM final AS sse
 
-ENTRYPOINT ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
