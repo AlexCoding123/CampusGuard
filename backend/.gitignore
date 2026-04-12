@@ -5,3 +5,5 @@ videos
 .vscode
 node_modules/
 static/
+incidents/
+temp_clips/

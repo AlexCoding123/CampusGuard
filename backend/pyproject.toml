@@ -11,7 +11,9 @@ dependencies = [
     "httpx>=0.28.1",
     "opencv-python>=4.13.0.92",
     "python-dotenv>=1.2.2",
+    "python-multipart>=0.0.26",
     "python-socketio>=5.16.1",
+    "sse-starlette>=3.3.4",
     "uvicorn>=0.43.0",
     "websockets>=16.0",
 ]

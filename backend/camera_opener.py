@@ -5,14 +5,13 @@ import threading
 import time
 
 import cv2 as cv
+import uvicorn
 import numpy as np
 import socketio
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, StreamingResponse
-
 import asyncio, json, queue as q
-from shared import alert_queue
 
 from camera_service import process_worker
 
@@ -304,6 +303,7 @@ async def sse_events():
     async def stream():
         while True:
             try:
+                # CHECK THIS CODE I DONT KNOW IF THIS IS RIGHT
                 event = alert_queue.get_nowait()
                 yield f"data: {json.dumps(event)}\n\n"
             except q.Empty:
@@ -311,8 +311,6 @@ async def sse_events():
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 if __name__ == "__main__":
-    import uvicorn
-
     print("\n🚀 CampusGuard — Live Camera (FastAPI)")
     print(f"📡 Local IP: http://{LOCAL_IP}:5000")
     print("📱 Phone  → open ngrok HTTPS URL in phone browser")
