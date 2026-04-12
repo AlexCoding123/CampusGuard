@@ -1,5 +1,7 @@
 import os
+import queue
 import socket
+import threading
 import time
 
 import cv2 as cv
@@ -12,15 +14,20 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 import asyncio, json, queue as q
 from shared import alert_queue
 
-from gemini import analyze_clip
+from camera_service import process_worker
 
 load_dotenv()
 
 # --- CLIP RECORDING FROM PHONE FRAMES ---
-CLIP_DURATION = 5
 frame_buffer = []
 clip_number = 0
 last_clip_time = time.time()
+
+# Start the AI worker thread (same as camera_service)
+os.makedirs("videos", exist_ok=True)
+job_queue = queue.Queue()
+ai_thread = threading.Thread(target=process_worker, args=(job_queue,), daemon=True)
+ai_thread.start()
 
 # 1. Setup Socket.IO AsyncServer
 # We use 'asyncio' mode for FastAPI compatibility
@@ -267,44 +274,17 @@ async def on_frame(sid, data):
     if len(frame_buffer) % 10 == 1:
         print(f"[FRAME] Receiving frames... ({len(frame_buffer)} buffered)")
 
-    # Every 5 seconds, save clip and send to Gemini
-    # Only cut a clip when we have at least 15 frames (enough for a real video)
+    # Only cut a clip when we have at least 15 frames
     if len(frame_buffer) >= 15:
         clip_number += 1
         frames = frame_buffer.copy()
         frame_buffer.clear()
+        elapsed = time.time() - last_clip_time
         last_clip_time = time.time()
 
-        print(f"[CLIP] Buffered {len(frames)} frames, saving clip_{clip_number}...")
-        sio.start_background_task(save_and_analyze, frames, clip_number)
-
-
-async def save_and_analyze(frames, clip_num):
-    """Write frames to video file and send to Gemini for analysis."""
-    os.makedirs("videos", exist_ok=True)
-    clip_path = f"videos/clip_{clip_num}.mp4"
-
-    h, w = frames[0].shape[:2]
-    fps = max(1.0, len(frames) / CLIP_DURATION)
-    fourcc = cv.VideoWriter_fourcc(*"mp4v")
-    writer = cv.VideoWriter(clip_path, fourcc, fps, (w, h))
-    for f in frames:
-        writer.write(f)
-    writer.release()
-
-    print(f"[CLIP] Saved {clip_path} ({len(frames)} frames, {fps:.1f} FPS)")
-
-    try:
-        result = await analyze_clip(clip_path)
-        severity = result.get("severity", "safe")
-        report = result.get("report", "")
-
-        if result.get("is_fight"):
-            print(f"[ALERT] {clip_path}: {severity.upper()} — {report}")
-        else:
-            print(f"[CLEAR] {clip_path}: {report}")
-    except Exception as e:
-        print(f"[ERROR] Gemini analysis failed: {e}")
+        h, w = frames[0].shape[:2]
+        print(f"[CLIP] Buffered {len(frames)} frames, sending to worker...")
+        job_queue.put((frames, clip_number, elapsed, w, h))
 
 
 # --- FASTAPI ROUTES ---

@@ -78,7 +78,7 @@ async def test_alert():
             "confidence": 0.87,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "location": "Camera 1 - Main Entrance",
-            "video_url": "http://127.0.0.1:8000/alerts/media/shoot.mp4",
+            "video_url": "http://127.0.0.1:8080/alerts/media/shoot.mp4",
         },
         {
             "group_id": "1",
@@ -87,7 +87,7 @@ async def test_alert():
             "confidence": 0.91,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "location": "Camera 1 - Main Entrance", 
-            "video_url": "http://127.0.0.1:8000/alerts/media/shoot.mp4",
+            "video_url": "http://127.0.0.1:8080/alerts/media/shoot.mp4",
         },
         # Group 2 — solo
         {
@@ -97,7 +97,7 @@ async def test_alert():
             "confidence": 0.76,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "location": "Camera 2 - Parking Lot",
-            "video_url": "http://127.0.0.1:8000/alerts/media/shoot.mp4",
+            "video_url": "http://127.0.0.1:8080/alerts/media/shoot.mp4",
         },
         # Group 3 — solo
         {
@@ -107,7 +107,7 @@ async def test_alert():
             "confidence": 0.63,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "location": "Camera 3 - Side Exit",
-            "video_url": "http://127.0.0.1:8000/alerts/media/shoot.mp4",
+            "video_url": "http://127.0.0.1:8080/alerts/media/shoot.mp4",
         },
     ]
 

@@ -54,52 +54,47 @@ def process_worker(job_queue):
             break
 
         frames, clip_number, duration, width, height = job
-        clip_path = f"videos/clip_{clip_number}.mp4"
+        temp_path = f"temp_clips/clip_{clip_number}.mp4"
         actual_fps = len(frames) / duration
 
         print(
             f"📦 Packaging clip {clip_number} ({len(frames)} frames @ {actual_fps:.1f} FPS)..."
         )
 
-        # 1. Write to Disk (Blocks this thread, but UI/Camera doesn't care!)
+        # 1. Write to temp directory for Gemini
+        os.makedirs("temp_clips", exist_ok=True)
         fourcc = cv.VideoWriter_fourcc(*"mp4v")
         safe_fps = min(60.0, max(1.0, float(actual_fps)))
-        writer = cv.VideoWriter(clip_path, fourcc, safe_fps, (width, height))
+        writer = cv.VideoWriter(temp_path, fourcc, safe_fps, (width, height))
         for frame in frames:
             writer.write(frame)
         writer.release()
 
         # 2. Send to Gemini
-        print(f"🚀 [UPLOAD] Sending {clip_path} to Gemini...")
+        print(f"🚀 [UPLOAD] Sending {temp_path} to Gemini...")
         try:
-            # We use asyncio.run() here to safely execute your async Gemini function
-            # inside this synchronous worker thread.
-            result = asyncio.run(analyze_clip(clip_path))
+            result = asyncio.run(analyze_clip(temp_path))
 
             report = result.get("report")
-            if result.get("is_fight"):
+            severity = result.get("severity")
+            if severity == "violent":
+                # Move to incidents folder
+                os.makedirs("incidents", exist_ok=True)
+                incident_path = f"incidents/clip_{clip_number}.mp4"
+                os.rename(temp_path, incident_path)
+                print(f"🚨 {incident_path}: VIOLENT — {report}\n")
                 httpx.post("http://127.0.0.1:8080/alerts/send", json={
                     "group_id": "1",
                     "severity": result.get("severity"),
                     "confidence": round(float(result.get("confidence", 0.5)), 2),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "location": "Camera 1 - Main Entrance",
-                    "video_url": clip_path,
+                    "video_url": incident_path,
                     "report": result.get("report", ""),
                 })
-                severity = result.get("severity")
-                if severity == "critical":
-                    print(f"🚨 {clip_path}: IMMEDIATE POLICE DISPATCH REQUIRED 🚨")
-                    print(f"{report}\n")
-                elif severity == "violent":
-                    print(f"🚨 {clip_path}: CAMPUS SECURITY ALERT: HIGH PRIORITY 🚨")
-                    print(f"{report}\n")
-                else:
-                    print(f"🚨 {clip_path}: altercation detected.")
-                    print(f"{report}\n")
             else:
-                print(f"✅ Clear: {clip_path}.")
-                print(f"{report}\n")
+                os.remove(temp_path)
+                print(f"✅ Clear: clip_{clip_number} — {report}\n")
         except Exception as e:
             print(f"❌ Error: {e}")
 
