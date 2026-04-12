@@ -10,7 +10,7 @@ notification_router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 alert_queues: list[asyncio.Queue] = []
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "videos")
 
 
 @notification_router.get("/media/{filename}")

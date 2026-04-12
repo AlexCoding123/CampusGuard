@@ -298,17 +298,17 @@ async def index():
 async def view():
     return VIEW_PAGE
 
-@app.get("/events")
-async def sse_events():
-    async def stream():
-        while True:
-            try:
-                # CHECK THIS CODE I DONT KNOW IF THIS IS RIGHT
-                event = alert_queue.get_nowait()
-                yield f"data: {json.dumps(event)}\n\n"
-            except q.Empty:
-                await asyncio.sleep(0.5)
-    return StreamingResponse(stream(), media_type="text/event-stream")
+# @app.get("/events")
+# async def sse_events():
+#     async def stream():
+#         while True:
+#             try:
+#                 # CHECK THIS CODE I DONT KNOW IF THIS IS RIGHT
+#                 event = alert_queue.get_nowait()
+#                 yield f"data: {json.dumps(event)}\n\n"
+#             except q.Empty:
+#                 await asyncio.sleep(0.5)
+#     return StreamingResponse(stream(), media_type="text/event-stream")
 
 if __name__ == "__main__":
     print("\n🚀 CampusGuard — Live Camera (FastAPI)")

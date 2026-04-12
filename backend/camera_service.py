@@ -1,6 +1,7 @@
 import asyncio
 import os
 import queue
+import subprocess
 import threading
 import time
 
@@ -43,6 +44,25 @@ class CameraStream:
         self.cap.release()
 
 
+def reencode_h264(input_path: str, output_path: str) -> bool:
+    """Re-encode to H.264 MP4 with faststart for browser compatibility."""
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", input_path,
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                output_path,
+            ],
+            capture_output=True,
+            timeout=120,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
 def process_worker(job_queue):
     """
     Background Worker Thread.
@@ -70,6 +90,14 @@ def process_worker(job_queue):
             writer.write(frame)
         writer.release()
 
+        # Re-encode to H.264 + faststart so browsers (Firefox, Vivaldi) can play it
+        h264_path = temp_path.replace(".mp4", "_web.mp4")
+        if reencode_h264(temp_path, h264_path):
+            os.remove(temp_path)
+            temp_path = h264_path
+        else:
+            print("⚠️  FFmpeg not found — video may not play in Firefox/Vivaldi")
+
         # 2. Send to Gemini
         print(f"🚀 [UPLOAD] Sending {temp_path} to Gemini...")
         try:
@@ -89,7 +117,7 @@ def process_worker(job_queue):
                     "confidence": round(float(result.get("confidence", 0.5)), 2),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "location": "Camera 1 - Main Entrance",
-                    "video_url": incident_path,
+                    "video_url": f"http://127.0.0.1:8080/incidents/clip_{clip_number}.mp4",
                     "report": result.get("report", ""),
                 })
             else:
@@ -101,8 +129,19 @@ def process_worker(job_queue):
         job_queue.task_done()
 
 
+def _clear_dir(path: str):
+    """Remove all files in a directory (creates it if missing)."""
+    os.makedirs(path, exist_ok=True)
+    for f in os.listdir(path):
+        fp = os.path.join(path, f)
+        if os.path.isfile(fp):
+            os.remove(fp)
+
+
 def start_capture(source=0):
-    os.makedirs("videos", exist_ok=True)
+    os.makedirs("temp", exist_ok=True)
+    _clear_dir("incidents")
+    _clear_dir("temp_clips")
 
     # Initialize the threaded stream
     stream = CameraStream(source).start()

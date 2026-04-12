@@ -109,3 +109,5 @@ def register_device(device: DeviceToken):
 # Serve snapshot images
 os.makedirs("static/snapshots", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+os.makedirs("incidents", exist_ok=True)
+app.mount("/incidents", StaticFiles(directory="incidents"), name="incidents")
