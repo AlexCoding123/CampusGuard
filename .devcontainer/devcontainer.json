@@ -1,6 +1,6 @@
 {
 	"name": "Backend Service",
-	"dockerComposeFile": "../../docker-compose.yaml",
+	"dockerComposeFile": "../docker-compose.yaml",
 	"service": "backend",
 	"workspaceFolder": "/app",
 	"features": {
@@ -65,6 +65,6 @@
 			}
 		}
 	},
-	"forwardPorts": [8000],
+	"forwardPorts": [8080],
 	"remoteUser": "root"
 }

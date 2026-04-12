@@ -8,4 +8,4 @@ CAMERA_PID=$!
 
 # Start FastAPI main.py
 echo "Starting FastAPI main.py..."
-exec uvicorn main:app --host 0.0.0.0 --port 8000
+exec uvicorn main:app --host 0.0.0.0 --port 8080

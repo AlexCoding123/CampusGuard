@@ -2,28 +2,26 @@ import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 
 import cv2 as cv
+import httpx
 import imageio
 
 from gemini import analyze_frames
-
-import httpx
-from datetime import datetime, timezone
-
 
 # --- CONFIGURATION ---
 CLIP_DURATION = 3
 
 # --- INCIDENT GROUP TRACKING ---
-_group_id           = 0
-_incident_active    = False
-_last_clip_time     = 0.0
-_last_severity_sent = None   # tracks highest severity fired so far
-_group_lock         = threading.Lock()
+_group_id = 0
+_incident_active = False
+_last_clip_time = 0.0
+_last_severity_sent = None  # tracks highest severity fired so far
+_group_lock = threading.Lock()
 
 SEVERITY_RANK = {"aggressive": 1, "critical": 2}
-COOLDOWN      = 30  # seconds before the same severity can fire again
+COOLDOWN = 30  # seconds before the same severity can fire again
 
 
 def _resolve_group(severity: str) -> str | None:
@@ -37,24 +35,26 @@ def _resolve_group(severity: str) -> str | None:
     global _group_id, _incident_active, _last_clip_time, _last_severity_sent
     with _group_lock:
         if severity == "safe":
-            _incident_active    = False
+            _incident_active = False
             _last_severity_sent = None
             return None
 
         now = time.time()
         if not _incident_active:
             # New incident
-            _group_id           += 1
-            _incident_active     = True
-            _last_clip_time      = now
-            _last_severity_sent  = severity
+            _group_id += 1
+            _incident_active = True
+            _last_clip_time = now
+            _last_severity_sent = severity
             return str(_group_id)
 
-        is_escalation  = SEVERITY_RANK.get(severity, 0) > SEVERITY_RANK.get(_last_severity_sent or "", 0)
+        is_escalation = SEVERITY_RANK.get(severity, 0) > SEVERITY_RANK.get(
+            _last_severity_sent or "", 0
+        )
         cooldown_passed = now - _last_clip_time >= COOLDOWN
 
         if is_escalation or cooldown_passed:
-            _last_clip_time     = now
+            _last_clip_time = now
             _last_severity_sent = severity
             return str(_group_id)
 
@@ -96,12 +96,14 @@ def process_worker_single(frames, clip_number, duration):
     discarded immediately, saving both time and disk I/O.
     """
     actual_fps = len(frames) / duration
-    print(f"🔍 Analyzing clip_{clip_number} ({len(frames)} frames @ {actual_fps:.1f} FPS)...")
+    print(
+        f"🔍 Analyzing clip_{clip_number} ({len(frames)} frames @ {actual_fps:.1f} FPS)..."
+    )
     try:
         result = analyze_frames(frames)
 
         severity = result.get("severity")
-        report   = result.get("report")
+        report = result.get("report")
 
         group_id = _resolve_group(severity or "safe")
 
@@ -121,15 +123,18 @@ def process_worker_single(frames, clip_number, duration):
                     vid_writer.append_data(small[:, :, ::-1])  # BGR → RGB
 
             print(f"🚨 {incident_path}: VIOLENT (group {group_id}) — {report}\n")
-            httpx.post("http://127.0.0.1:8080/alerts/send", json={
-                "group_id": group_id,
-                "severity": severity,
-                "confidence": round(float(result.get("confidence", 0.5)), 2),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "location": "Camera 1 - Main Entrance",
-                "video_url": f"http://127.0.0.1:8080/incidents/clip_{clip_number}.mp4",
-                "report": report or "",
-            })
+            httpx.post(
+                "http://127.0.0.1:8080/alerts/send",
+                json={
+                    "group_id": group_id,
+                    "severity": severity,
+                    "confidence": round(float(result.get("confidence", 0.5)), 2),
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "location": "Camera 1 - Main Entrance",
+                    "video_url": f"http://127.0.0.1:8080/incidents/clip_{clip_number}.mp4",
+                    "report": report or "",
+                },
+            )
         else:
             print(f"✅ Clear: clip_{clip_number} — incident closed\n")
     except Exception as e:
@@ -164,8 +169,8 @@ def start_capture(source=0):
     frames_buffer = []
     start_time = time.time()
     last_frame_time = 0.0
-    CAPTURE_FPS = 15                      # frames to collect per second
-    FRAME_INTERVAL = 1.0 / CAPTURE_FPS   # ~67 ms between captured frames
+    CAPTURE_FPS = 15  # frames to collect per second
+    FRAME_INTERVAL = 1.0 / CAPTURE_FPS  # ~67 ms between captured frames
 
     print("🎥 CCTV Started. Press Ctrl+C to stop.")
 
@@ -173,7 +178,7 @@ def start_capture(source=0):
         while True:
             now = time.time()
             if now - last_frame_time < FRAME_INTERVAL:
-                time.sleep(0.005)         # yield CPU, check again in 5 ms
+                time.sleep(0.005)  # yield CPU, check again in 5 ms
                 continue
 
             frame = stream.read()
@@ -189,7 +194,9 @@ def start_capture(source=0):
 
                 executor.submit(
                     process_worker_single,
-                    frames_buffer.copy(), clip_number, elapsed_time,
+                    frames_buffer.copy(),
+                    clip_number,
+                    elapsed_time,
                 )
 
                 frames_buffer.clear()
