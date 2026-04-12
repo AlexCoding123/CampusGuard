@@ -1,4 +1,3 @@
-import asyncio
 import os
 import threading
 import time
@@ -7,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import cv2 as cv
 import imageio
 
-from gemini import analyze_clip
+from gemini import analyze_frames
 
 import httpx
 from datetime import datetime, timezone
@@ -45,49 +44,46 @@ class CameraStream:
 
 
 def process_worker_single(frames, clip_number, duration, width, height):
-    """Process a single clip in its own thread."""
-    temp_path = f"temp_clips/clip_{clip_number}.mp4"
+    """Process a single clip in its own thread.
+
+    Fast path: send raw frames as JPEG images to Gemini (no video encoding).
+    Only encode H.264 when the clip is actually violent — safe clips are
+    discarded immediately, saving both time and disk I/O.
+    """
     actual_fps = len(frames) / duration
-    safe_fps = min(60.0, max(1.0, float(actual_fps)))
-
-    os.makedirs("temp_clips", exist_ok=True)
-
-    # Downscale to 640x480 for smaller files / faster Gemini upload.
-    # Write H.264 via imageio-ffmpeg (bundles its own FFmpeg — no system
-    # FFmpeg or openh264 DLL required). H.264 is required for Firefox/Vivaldi.
-    small_w, small_h = 640, 480
-    with imageio.get_writer(
-        temp_path,
-        fps=safe_fps,
-        codec="libx264",
-        output_params=["-pix_fmt", "yuv420p", "-crf", "23", "-preset", "fast"],
-    ) as vid_writer:
-        for frame in frames:
-            small = cv.resize(frame, (small_w, small_h))
-            vid_writer.append_data(small[:, :, ::-1])  # BGR → RGB
-
-    print(f"🔍 Analyzing clip_{clip_number} ({len(frames)} frames)...")
+    print(f"🔍 Analyzing clip_{clip_number} ({len(frames)} frames @ {actual_fps:.1f} FPS)...")
     try:
-        result = asyncio.run(analyze_clip(temp_path))
+        result = analyze_frames(frames)
 
-        report = result.get("report")
         severity = result.get("severity")
+        report   = result.get("report")
+
         if severity == "violent":
+            # Only now do we pay the cost of H.264 encoding
             os.makedirs("incidents", exist_ok=True)
             incident_path = f"incidents/clip_{clip_number}.mp4"
-            os.rename(temp_path, incident_path)
+            safe_fps = min(60.0, max(1.0, float(actual_fps)))
+            with imageio.get_writer(
+                incident_path,
+                fps=safe_fps,
+                codec="libx264",
+                output_params=["-pix_fmt", "yuv420p", "-crf", "23", "-preset", "fast"],
+            ) as vid_writer:
+                for frame in frames:
+                    small = cv.resize(frame, (640, 480))
+                    vid_writer.append_data(small[:, :, ::-1])  # BGR → RGB
+
             print(f"🚨 {incident_path}: VIOLENT — {report}\n")
             httpx.post("http://127.0.0.1:8080/alerts/send", json={
                 "group_id": "1",
-                "severity": result.get("severity"),
+                "severity": severity,
                 "confidence": round(float(result.get("confidence", 0.5)), 2),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "location": "Camera 1 - Main Entrance",
                 "video_url": f"http://127.0.0.1:8080/incidents/clip_{clip_number}.mp4",
-                "report": result.get("report", ""),
+                "report": report or "",
             })
         else:
-            os.remove(temp_path)
             print(f"✅ Clear: clip_{clip_number} — {report}\n")
     except Exception as e:
         print(f"❌ Error: {e}")
