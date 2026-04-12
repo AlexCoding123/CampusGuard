@@ -6,8 +6,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json package-lock.json ./
 # Best practice: use cache mounting
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+RUN npm install
 
 # 3. Development Stage
 FROM deps AS dev
