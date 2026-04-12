@@ -83,6 +83,10 @@ export default function App() {
     });
 
     es.addEventListener("heartbeat", () => {});
+    es.addEventListener("reset", () => {
+      setGroups(new Map());
+      setGroupOrder([]);
+    });
     es.onerror = () => {
       setConnected(false);
       es.close();
