@@ -75,7 +75,7 @@ async def create_alert(
         "timestamp": timestamp,
         "camera": camera,
         "confidence": confidence,
-        "snapshot_url": f"/{snapshot_path}",
+        "snapshot_url": "",
         "report": report,
         "audio_url": audio_url,
     }
