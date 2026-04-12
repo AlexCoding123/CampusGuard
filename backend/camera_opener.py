@@ -11,11 +11,10 @@ import cv2 as cv
 import numpy as np
 import socketio
 import uvicorn
+from backend.opencv_service import process_worker
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, StreamingResponse
-
-from backend.opencv_service import process_worker
 
 load_dotenv()
 
@@ -24,11 +23,12 @@ frame_buffer = []
 clip_number = 0
 last_clip_time = time.time()
 
-# Start the AI worker thread (same as camera_service)
+# Start multiple AI worker threads so clips process in parallel
 os.makedirs("videos", exist_ok=True)
 job_queue = queue.Queue()
-ai_thread = threading.Thread(target=process_worker, args=(job_queue,), daemon=True)
-ai_thread.start()
+for i in range(3):
+    t = threading.Thread(target=process_worker, args=(job_queue,), daemon=True)
+    t.start()
 
 # 1. Setup Socket.IO AsyncServer
 # We use 'asyncio' mode for FastAPI compatibility
@@ -110,12 +110,12 @@ PHONE_PAGE = """
     const ctx = canvas.getContext('2d');
     setInterval(() => {
       if (video.videoWidth === 0) return;
-      canvas.width = 1280;
-      canvas.height = 720;
-      ctx.drawImage(video, 0, 0, 1280, 720);
+      canvas.width = 640;
+      canvas.height = 480;
+      ctx.drawImage(video, 0, 0, 640, 480);
       canvas.toBlob(blob => {
         blob.arrayBuffer().then(buf => socket.emit('frame', buf));
-      }, 'image/jpeg', 0.85);
+      }, 'image/jpeg', 0.7);
     }, 200);
   </script>
 </body>
@@ -220,41 +220,36 @@ VIEW_PAGE = """
 
 @sio.on("connect")  # type: ignore
 async def on_connect(sid, environ):
-    print(f"[SOCKET] Client connected: {sid}")
+    print(f"📱 Phone connected: {sid}")
 
 
 @sio.on("disconnect")  # type: ignore
 async def on_disconnect(sid):
-    print(f"[SOCKET] Client disconnected: {sid}")
+    print(f"📱 Phone disconnected: {sid}")
 
 
 @sio.on("viewer_ready")  # type: ignore
 async def on_viewer_ready(sid):
-    print(f"[SIGNAL] Viewer ready (from {sid})")
     await sio.emit("viewer_ready", skip_sid=sid)
 
 
 @sio.on("offer")  # type: ignore
 async def on_offer(sid, data):
-    print(f"[SIGNAL] Offer received (from {sid})")
     await sio.emit("offer", data, skip_sid=sid)
 
 
 @sio.on("answer")  # type: ignore
 async def on_answer(sid, data):
-    print(f"[SIGNAL] Answer received (from {sid})")
     await sio.emit("answer", data, skip_sid=sid)
 
 
 @sio.on("phone_ice")  # type: ignore
 async def on_phone_ice(sid, data):
-    print(f"[ICE] Phone ICE candidate (from {sid})")
     await sio.emit("ice_candidate", data, skip_sid=sid)
 
 
 @sio.on("viewer_ice")  # type: ignore
 async def on_viewer_ice(sid, data):
-    print(f"[ICE] Viewer ICE candidate (from {sid})")
     await sio.emit("ice_candidate", data, skip_sid=sid)
 
 
@@ -272,8 +267,6 @@ async def on_frame(sid, data):
         return
 
     frame_buffer.append(frame)
-    if len(frame_buffer) % 10 == 1:
-        print(f"[FRAME] Receiving frames... ({len(frame_buffer)} buffered)")
 
     # Only cut a clip when we have at least 15 frames
     if len(frame_buffer) >= 15:
