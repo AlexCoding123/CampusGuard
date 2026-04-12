@@ -1,13 +1,10 @@
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: final
+    image: amirrezamojtahedi/campusguard:latest
     volumes:
       - incidents:/app/incidents
-    env_file:
-      - ./backend/.env
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:?}
 
   frontend:
     build:
