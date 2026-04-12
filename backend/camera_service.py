@@ -8,6 +8,10 @@ import cv2 as cv
 
 from gemini import analyze_clip
 
+import httpx
+from datetime import datetime, timezone
+
+
 # --- CONFIGURATION ---
 CLIP_DURATION = 5
 
@@ -74,6 +78,14 @@ def process_worker(job_queue):
 
             report = result.get("report")
             if result.get("is_fight"):
+                alert_queue.put({ ## To actually send alert 
+                    "type": "alert",
+                    "severity": result.get("severity"),
+                    "confidence": result.get("confidence"),
+                    "report": result.get("report"),
+                    "clip": clip_path,
+                    "timestamp": time.time()
+                })
                 severity = result.get("severity")
                 if severity == "critical":
                     print(f"🚨 {clip_path}: IMMEDIATE POLICE DISPATCH REQUIRED 🚨")

@@ -3,7 +3,10 @@ import socket
 import socketio
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
+
+import asyncio, json, queue as q
+from shared import alert_queue
 
 load_dotenv()
 
@@ -238,6 +241,16 @@ async def index():
 async def view():
     return VIEW_PAGE
 
+@app.get("/events")
+async def sse_events():
+    async def stream():
+        while True:
+            try:
+                event = alert_queue.get_nowait()
+                yield f"data: {json.dumps(event)}\n\n"
+            except q.Empty:
+                await asyncio.sleep(0.5)
+    return StreamingResponse(stream(), media_type="text/event-stream")
 
 if __name__ == "__main__":
     import uvicorn
