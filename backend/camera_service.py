@@ -148,7 +148,7 @@ def _clear_dir(path: str):
 def start_capture(source=0):
     os.makedirs("temp", exist_ok=True)
     _clear_dir("incidents")
-    _clear_dir("temp_clips")
+    _clear_dir("temp_ clips")
 
     # Tell connected frontends to clear stale alerts from any previous run
     try:

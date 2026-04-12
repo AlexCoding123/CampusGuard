@@ -15,7 +15,7 @@ export default function StatusBar({ groups }) {
       background: "#030609",
       flexShrink: 0,
     }}>
-      {["aggressive", "violent", "critical"].map((level) => {
+      {["aggressive", "critical"].map((level) => {
         const cfg = SEVERITY_CONFIG[level];
         const count = allAlerts.filter((a) => a.severity === level).length;
         return (

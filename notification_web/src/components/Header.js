@@ -21,7 +21,7 @@ export default function Header({ alertCount, connected }) {
       {/* Brand */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: "clamp(1.1rem, 3.5vw, 1.5rem)", letterSpacing: "0.2em", color: "#e8f0f8", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-          SentinelAI
+          CampusGuard
         </div>
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "clamp(0.58rem, 1.6vw, 0.72rem)", color: "#3a5a7a", letterSpacing: "0.07em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           THREAT DETECTION · v1.0

@@ -7,12 +7,6 @@ export const SEVERITY_CONFIG = {
     label: "AGGRESSIVE",
     glow: "0 0 18px rgba(240,196,0,0.4)",
   },
-  violent: {
-    color: "#ff8c00",
-    bg: "rgba(255,140,0,0.12)",
-    label: "VIOLENT",
-    glow: "0 0 18px rgba(255,140,0,0.5)",
-  },
   critical: {
     color: "#ff2244",
     bg: "rgba(255,34,68,0.12)",
