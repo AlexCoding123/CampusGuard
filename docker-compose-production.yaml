@@ -1,0 +1,11 @@
+services:
+  backend:
+    image: 'amirrezamojtahedi/campusguard:latest'
+    volumes:
+      - 'incidents:/app/incidents'
+    environment:
+      - 'GEMINI_API_KEY=${GEMINI_API_KEY:?}'
+  frontend:
+    image: 'amirrezamojtahedi/campusguard-dashboard:latest'
+volumes:
+  incidents: null
