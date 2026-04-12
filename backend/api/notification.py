@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 notification_router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -35,10 +35,7 @@ async def stream_alerts(request: Request):
                     break
                 try:
                     alert = await asyncio.wait_for(queue.get(), timeout=30)
-                    yield {
-                        "event": "threat",
-                        "data": json.dumps(alert)
-                    }
+                    yield {"event": "threat", "data": json.dumps(alert)}
                 except asyncio.TimeoutError:
                     yield {"event": "heartbeat", "data": "ping"}
         finally:
@@ -51,14 +48,12 @@ async def stream_alerts(request: Request):
 @notification_router.post("/send")
 async def send_alert(alert: dict):
     payload = {
-        "id": str(datetime.now().timestamp()),
-        "timestamp": datetime.now().isoformat(),
-        "location": alert.get("location", "Unknown"),
-        "threat_level": alert.get("threat_level", "HIGH"),
-        "description": alert.get("description", ""),
+        "group_id": alert.get("group_id", "1"),
+        "severity": alert.get("severity", "aggressive"),
+        "confidence": round(float(alert.get("confidence", 0.5)), 2),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "location": alert.get("location", "Camera 1 - Main Entrance"),
         "video_url": alert.get("video_url", ""),
-        "lat": str(alert.get("lat", "")),
-        "lng": str(alert.get("lng", ""))
     }
     if not alert_queues:
         return {"status": "no clients connected", "sent_to": 0}
@@ -70,19 +65,49 @@ async def send_alert(alert: dict):
 
 @notification_router.get("/test")
 async def test_alert():
-    """Hit this from your browser to send a fake alert — useful for testing"""
-    payload = {
-        "id": str(datetime.now().timestamp()),
-        "timestamp": datetime.now().isoformat(),
-        "location": "Main entrance - Camera 1",
-        "threat_level": "MEDIUM",
-        "description": "Unidentified person with suspicious behavior detected by Gemini",
-        "video_url": "http://127.0.0.1:8000/alerts/media/shoot.mp4",
-        "lat": "45.5017",
-        "lng": "-73.5673"
-    }
     if not alert_queues:
         return {"status": "no clients connected"}
-    for queue in alert_queues:
-        await queue.put(payload)
-    return {"status": "test alert sent", "sent_to": len(alert_queues)}
+
+    events = [
+        # Group 1 — two videos together
+        {
+            "group_id": "1",
+            "severity": "violent",
+            "confidence": 0.87,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "location": "Camera 1 - Main Entrance",
+            "video_url": "http://127.0.0.1:8000/alerts/media/shoot.mp4",
+        },
+        {
+            "group_id": "1",
+            "severity": "violent",
+            "confidence": 0.91,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "location": "Camera 1 - Main Entrance",
+            "video_url": "http://127.0.0.1:8000/alerts/media/shoot.mp4",
+        },
+        # Group 2 — solo
+        {
+            "group_id": "2",
+            "severity": "critical",
+            "confidence": 0.76,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "location": "Camera 2 - Parking Lot",
+            "video_url": "http://127.0.0.1:8000/alerts/media/shoot.mp4",
+        },
+        # Group 3 — solo
+        {
+            "group_id": "3",
+            "severity": "aggressive",
+            "confidence": 0.63,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "location": "Camera 3 - Side Exit",
+            "video_url": "http://127.0.0.1:8000/alerts/media/shoot.mp4",
+        },
+    ]
+
+    for payload in events:
+        for queue in alert_queues:
+            await queue.put(payload)
+
+    return {"status": "test alerts sent", "sent_to": len(alert_queues), "groups": 3, "total_events": 4}
