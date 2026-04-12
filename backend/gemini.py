@@ -13,21 +13,39 @@ client = genai.Client()
 ANALYSIS_SCHEMA = {
     "type": "OBJECT",
     "properties": {
-        "severity":   {"type": "STRING", "enum": ["safe", "violent"]},
+        "severity": {
+            "type": "STRING",
+            "enum": ["safe", "aggressive", "critical"],
+        },
         "confidence": {"type": "NUMBER"},
         "report":     {"type": "STRING"},
     },
     "required": ["severity", "confidence", "report"],
 }
 
-# Shorter prompt = fewer input tokens = faster response
-PROMPT = """You are a school security CCTV AI. Analyze these frames.
+PROMPT = """You are a school security CCTV AI. Analyze these frames and classify the threat level. Err on the side of caution.
 
-SAFE: walking, sitting, standing, talking, studying — no physical combat contact.
-VIOLENT: fighting, wrestling, punching, shoving, grabbing, choking, or restraining.
-Treat ALL combat-like physical contact as VIOLENT even if it looks playful.
+SAFE: Calm activity — walking, sitting, talking, studying. No physical tension or threat.
 
-Return severity (safe/violent), confidence (0-1), and a one-sentence report."""
+AGGRESSIVE: Any physical confrontation or threat —
+- Raised fists, fighting stance, or squaring up toward another person
+- Pushing, shoving, punching, kicking, slapping, or striking
+- Wrestling, grabbing, choking, or restraining
+- One person charging or lunging at another
+- Simulated or mimicked fighting (treat the same as real fighting)
+- Any sustained physical struggle between people
+
+CRITICAL: Severe threat requiring immediate response — classify as CRITICAL if ANY of these appear in even ONE frame:
+- A person lying, falling, collapsed, or pinned on the floor/ground
+- Multiple attackers on one person
+- Visible weapon or object used as a weapon
+- One person completely overpowering another with no resistance
+- Bystanders visibly fleeing in panic
+
+When in doubt between SAFE and AGGRESSIVE, choose AGGRESSIVE.
+When in doubt between AGGRESSIVE and CRITICAL, choose CRITICAL.
+
+Return severity (safe/aggressive/critical), confidence (0-1), and a one-sentence report."""
 
 
 def analyze_frames(frames: list) -> dict:
@@ -41,8 +59,9 @@ def analyze_frames(frames: list) -> dict:
     if not frames:
         return {"severity": "safe", "confidence": 0.0, "report": "No frames."}
 
-    # Pick up to 5 evenly-spaced frames
-    n       = min(5, len(frames))
+    # Pick up to 8 evenly-spaced frames — more frames = fewer missed moments
+    # (e.g. victim falling to ground near end of clip)
+    n       = min(8, len(frames))
     step    = max(1, (len(frames) - 1) // max(n - 1, 1))
     indices = [min(i * step, len(frames) - 1) for i in range(n)]
 
