@@ -58,8 +58,6 @@ FROM base AS final
 COPY --from=prod-builder /app /app
 COPY entrypoint.sh /app/entrypoint.sh
 
-RUN chmod +x /app/entrypoint.sh
-
 ENV PATH="/app/.venv/bin:$PATH"
 
 ENTRYPOINT ["/app/entrypoint.sh"]
