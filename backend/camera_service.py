@@ -157,7 +157,7 @@ def start_capture(source=0):
 
     # Tell connected frontends to clear stale alerts from any previous run
     try:
-        httpx.post("http://127.0.0.1:8080/alerts/reset", timeout=2)
+        httpx.post("https://sse.campusguard.tech/alerts/reset", timeout=2)
     except Exception:
         pass  # Server may not be up yet; frontend will reconnect fresh anyway
 
