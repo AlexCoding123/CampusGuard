@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+
 from api.notification import notification_router
 
 load_dotenv()

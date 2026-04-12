@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { API_BASE } from "./constants";
+import { playAlarm, unlockAudio } from "./utils/alarm";
 import FlashOverlay from "./components/FlashOverlay";
 import AlertCard from "./components/AlertCard";
 import Modal from "./components/Modal";
@@ -8,31 +9,30 @@ import Ticker from "./components/Ticker";
 import StatusBar from "./components/StatusBar";
 
 export default function App() {
-  const [alerts, setAlerts]         = useState([]);
-  const [connected, setConnected]   = useState(false);
+  const [alerts, setAlerts]       = useState([]);
+  const [connected, setConnected] = useState(false);
   const [flashAlert, setFlashAlert] = useState(null);
-  const [selected, setSelected]     = useState(null);
-  const [newIds, setNewIds]         = useState(new Set());
-  const [ticker, setTicker]         = useState("");
+  const [selected, setSelected]   = useState(null);
+  const [newIds, setNewIds]       = useState(new Set());
+  const [ticker, setTicker]       = useState({ text: "", key: 0 });
+  const [audioReady, setAudioReady] = useState(false);
 
   const esRef    = useRef(null);
   const retryRef = useRef(null);
 
   const connect = useCallback(() => {
     if (esRef.current) esRef.current.close();
-
     const es = new EventSource(`${API_BASE}/alerts/stream`);
     esRef.current = es;
-
     es.onopen = () => setConnected(true);
-
     es.addEventListener("threat", (e) => {
       try {
         const alert = JSON.parse(e.data);
+        playAlarm();
         setAlerts((prev) => [alert, ...prev]);
         setNewIds((prev) => { const s = new Set(prev); s.add(alert.id); return s; });
         setFlashAlert(alert);
-        setTicker(`⚠ ${alert.threat_level} · ${alert.location}`);
+        setTicker({ text: `⚠ ${alert.threat_level} · ${alert.location}`, key: alert.id });
         setTimeout(() => {
           setNewIds((prev) => { const s = new Set(prev); s.delete(alert.id); return s; });
         }, 4000);
@@ -40,9 +40,7 @@ export default function App() {
         console.error("Alert parse error:", err);
       }
     });
-
-    es.addEventListener("heartbeat", () => { /* keep-alive, no-op */ });
-
+    es.addEventListener("heartbeat", () => {});
     es.onerror = () => {
       setConnected(false);
       es.close();
@@ -58,24 +56,45 @@ export default function App() {
     };
   }, [connect]);
 
-  const handleTest = () => {
-    fetch(`${API_BASE}/alerts/test`).catch(() => {});
+  const handleActivate = () => {
+    unlockAudio();
+    setAudioReady(true);
   };
 
   return (
     <>
-      {flashAlert && (
-        <FlashOverlay alert={flashAlert} onDone={() => setFlashAlert(null)} />
-      )}
-      {selected && (
-        <Modal alert={selected} onClose={() => setSelected(null)} />
+      {flashAlert && <FlashOverlay alert={flashAlert} onDone={() => setFlashAlert(null)} />}
+      {selected && <Modal alert={selected} onClose={() => setSelected(null)} />}
+
+      {/* Audio activation banner — shown until user taps it */}
+      {!audioReady && (
+        <div
+          onClick={handleActivate}
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, zIndex: 8000,
+            background: "#ff2244",
+            padding: "10px 20px",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+            cursor: "pointer",
+            animation: "borderPulse 1.5s ease-in-out infinite",
+          }}
+        >
+          <span style={{ fontSize: "1rem" }}>🔊</span>
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.8rem", color: "#fff", letterSpacing: "0.15em" }}>
+            TAP HERE TO ACTIVATE AUDIO ALERTS
+          </span>
+        </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", height: "100%", height: "100dvh", overflow: "hidden" }}>
-        <Header alertCount={alerts.length} connected={connected} onTest={handleTest} />
-        <Ticker message={ticker} />
+      <div style={{
+        display: "flex", flexDirection: "column",
+        height: "100dvh", overflow: "hidden",
+        paddingTop: audioReady ? 0 : "40px", // offset for banner
+        transition: "padding-top 0.3s ease",
+      }}>
+        <Header alertCount={alerts.length} connected={connected} />
+        <Ticker message={ticker.text} tickerKey={ticker.key} />
 
-        {/* Alert feed */}
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "12px", padding: "16px" }}>
           {alerts.length === 0 ? (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", animation: "gridFade 0.6s ease", minHeight: "200px" }}>
@@ -86,7 +105,7 @@ export default function App() {
                 Awaiting threats…
               </div>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.72rem", color: "#1e3050", letterSpacing: "0.1em", textAlign: "center" }}>
-                Tap TEST in the header to simulate an alert
+                {audioReady ? "Trigger alerts via the TEST button or backend" : "Tap the banner above to enable sound"}
               </div>
             </div>
           ) : (

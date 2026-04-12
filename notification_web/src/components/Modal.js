@@ -83,7 +83,7 @@ export default function Modal({ alert, onClose }) {
           borderRadius: isMobile ? "16px 16px 0 0" : "8px",
           width: "100%",
           maxWidth: isMobile ? "100%" : "680px",
-          maxHeight: isMobile ? "92dvh" : "88vh",
+          maxHeight: isMobile ? "100dvh" : "98vh",
           overflowY: "auto",
           boxShadow: `0 0 60px ${cfg.color}22, 0 0 0 1px #1a2a3a`,
           animation: isMobile ? "sheetIn 0.3s cubic-bezier(0.22,1,0.36,1)" : "modalIn 0.25s cubic-bezier(0.22,1,0.36,1)",
@@ -116,7 +116,19 @@ export default function Modal({ alert, onClose }) {
 
         {/* Body */}
         <div style={{ padding: "20px" }}>
-          {/* Meta grid */}
+          {/* Video — top */}
+          {alert.video_url ? (
+            <div style={{ marginBottom: "18px" }}>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.65rem", color: "#3a5a7a", letterSpacing: "0.15em", marginBottom: "10px" }}>INCIDENT FOOTAGE</div>
+              <video src={alert.video_url} controls playsInline style={{ width: "100%", minHeight: "320px", borderRadius: "4px", border: `1px solid ${cfg.color}33`, background: "#000", boxShadow: `0 0 20px ${cfg.color}22` }} />
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "28px 24px", background: "#0a1018", border: "1px dashed #1e2e3e", borderRadius: "4px", fontFamily: "'Share Tech Mono', monospace", fontSize: "0.78rem", color: "#2a4a6a", letterSpacing: "0.1em", marginBottom: "18px" }}>
+              NO FOOTAGE AVAILABLE
+            </div>
+          )}
+
+          {/* Meta grid — bottom */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "18px" }}>
             {[
               ["ALERT ID", alert.id],
@@ -130,23 +142,11 @@ export default function Modal({ alert, onClose }) {
             ))}
           </div>
 
-          {/* Description */}
-          <div style={{ background: "#0d1520", border: "1px solid #1a2a3a", borderRadius: "4px", padding: "16px", marginBottom: "18px" }}>
+          {/* Description — bottom */}
+          <div style={{ background: "#0d1520", border: "1px solid #1a2a3a", borderRadius: "4px", padding: "16px" }}>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.65rem", color: "#3a5a7a", letterSpacing: "0.15em", marginBottom: "10px" }}>THREAT ASSESSMENT</div>
             <div style={{ fontFamily: "'Barlow', sans-serif", fontSize: "clamp(0.92rem, 2.5vw, 1rem)", color: "#a0bcd4", lineHeight: 1.65 }}>{alert.description}</div>
           </div>
-
-          {/* Video */}
-          {alert.video_url ? (
-            <div>
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.65rem", color: "#3a5a7a", letterSpacing: "0.15em", marginBottom: "10px" }}>INCIDENT FOOTAGE</div>
-              <video src={alert.video_url} controls playsInline style={{ width: "100%", borderRadius: "4px", border: `1px solid ${cfg.color}33`, background: "#000", boxShadow: `0 0 20px ${cfg.color}22` }} />
-            </div>
-          ) : (
-            <div style={{ textAlign: "center", padding: "28px 24px", background: "#0a1018", border: "1px dashed #1e2e3e", borderRadius: "4px", fontFamily: "'Share Tech Mono', monospace", fontSize: "0.78rem", color: "#2a4a6a", letterSpacing: "0.1em" }}>
-              NO FOOTAGE AVAILABLE
-            </div>
-          )}
         </div>
       </div>
     </div>

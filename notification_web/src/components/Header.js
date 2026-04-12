@@ -1,4 +1,4 @@
-export default function Header({ alertCount, connected, onTest }) {
+export default function Header({ alertCount, connected }) {
   return (
     <header
       style={{
@@ -12,13 +12,13 @@ export default function Header({ alertCount, connected, onTest }) {
         flexShrink: 0,
       }}
     >
-      {/* Logo — slightly smaller so it doesn't crowd neighbours */}
+      {/* Logo */}
       <div style={{ position: "relative", width: 36, height: 36, flexShrink: 0 }}>
         <div style={{ position: "absolute", inset: 0, border: "2px solid #ff2244", borderRadius: "50%", animation: "borderPulse 2s ease-in-out infinite" }} />
         <div style={{ position: "absolute", inset: 6, background: "#ff2244", borderRadius: "50%" }} />
       </div>
 
-      {/* Brand — flex:1 so it never squeezes the right side */}
+      {/* Brand */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: "clamp(1.1rem, 3.5vw, 1.5rem)", letterSpacing: "0.2em", color: "#e8f0f8", textTransform: "uppercase", whiteSpace: "nowrap" }}>
           SentinelAI
@@ -28,7 +28,7 @@ export default function Header({ alertCount, connected, onTest }) {
         </div>
       </div>
 
-      {/* Right controls — fixed gap so spacing is always clean */}
+      {/* Right controls */}
       <div style={{ display: "flex", alignItems: "center", gap: "16px", flexShrink: 0 }}>
         {/* Counter */}
         <div style={{ textAlign: "right" }}>
@@ -45,16 +45,6 @@ export default function Header({ alertCount, connected, onTest }) {
             {connected ? "LIVE" : "RETRY"}
           </span>
         </div>
-
-        {/* Test button */}
-        <button
-          onClick={onTest}
-          style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.78rem", letterSpacing: "0.08em", background: "none", border: "1px solid #1e3a5a", color: "#4a7a9a", padding: "0 14px", borderRadius: "3px", cursor: "pointer", textTransform: "uppercase", transition: "all 0.2s", minHeight: "44px", whiteSpace: "nowrap" }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#ff2244"; e.currentTarget.style.color = "#ff2244"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#1e3a5a"; e.currentTarget.style.color = "#4a7a9a"; }}
-        >
-          ▶ TEST
-        </button>
       </div>
     </header>
   );
