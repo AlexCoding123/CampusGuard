@@ -1,0 +1,11 @@
+.venv
+.vscode
+.env
+.static
+.videa
+.idea
+videos/
+static/
+incidents/
+temp_clips/
+.DS_Store

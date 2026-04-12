@@ -2,12 +2,11 @@ import os
 import uuid
 from datetime import datetime
 
-from fastapi import FastAPI, UploadFile, File
+from dotenv import load_dotenv
+from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from dotenv import load_dotenv
 from pydantic import BaseModel
-
 
 from api.notification import notification_router
 
@@ -33,11 +32,13 @@ push_tokens: list[str] = []
 
 # --- Models ---
 
+
 class DeviceToken(BaseModel):
     token: str
 
 
 # --- Routes ---
+
 
 @app.get("/health")
 def health():
@@ -56,10 +57,10 @@ async def create_alert(
     timestamp = datetime.now().isoformat()
 
     # Save snapshot image
-    os.makedirs("static/snapshots", exist_ok=True)
-    snapshot_path = f"static/snapshots/{alert_id}.jpg"
-    with open(snapshot_path, "wb") as f:
-        f.write(await snapshot.read())
+    # os.makedirs("static/snapshots", exist_ok=True)
+    # snapshot_path = f"static/snapshots/{alert_id}.jpg"
+    # with open(snapshot_path, "wb") as f:
+    #     f.write(await snapshot.read())
 
     # TODO: Gemini integration — generate incident report from snapshot
     report = "Incident report pending..."
@@ -107,7 +108,7 @@ def register_device(device: DeviceToken):
 
 
 # Serve snapshot images
-os.makedirs("static/snapshots", exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# os.makedirs("static/snapshots", exist_ok=True)
+# app.mount("/static", StaticFiles(directory="static"), name="static")
 os.makedirs("incidents", exist_ok=True)
 app.mount("/incidents", StaticFiles(directory="incidents"), name="incidents")
