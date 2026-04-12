@@ -99,13 +99,13 @@ PHONE_PAGE = """
     const ctx = canvas.getContext('2d');
     setInterval(() => {
       if (video.videoWidth === 0) return;
-      canvas.width = 640;
-      canvas.height = 480;
-      ctx.drawImage(video, 0, 0, 640, 480);
+      canvas.width = 1280;
+      canvas.height = 720;
+      ctx.drawImage(video, 0, 0, 1280, 720);
       canvas.toBlob(blob => {
         blob.arrayBuffer().then(buf => socket.emit('frame', buf));
-      }, 'image/jpeg', 0.6);
-    }, 300);
+      }, 'image/jpeg', 0.85);
+    }, 200);
   </script>
 </body>
 </html>
