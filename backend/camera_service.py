@@ -1,8 +1,8 @@
 import asyncio
 import os
-import queue
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import cv2 as cv
 
@@ -39,53 +39,38 @@ class CameraStream:
         self.cap.release()
 
 
-def process_worker(job_queue):
-    """
-    Background Worker Thread.
-    It sits and waits for jobs, writes to disk, and calls Gemini.
-    """
-    while True:
-        job = job_queue.get()
-        if job is None:  # A "None" job is our signal to shut down
-            break
+def process_worker_single(frames, clip_number, duration, width, height):
+    """Process a single clip in its own thread."""
+    temp_path = f"temp_clips/clip_{clip_number}.mp4"
+    actual_fps = len(frames) / duration
 
-        frames, clip_number, duration, width, height = job
-        temp_path = f"temp_clips/clip_{clip_number}.mp4"
-        actual_fps = len(frames) / duration
+    os.makedirs("temp_clips", exist_ok=True)
+    # Downscale to 640x480 for smaller files / faster upload
+    small_w, small_h = 640, 480
+    fourcc = cv.VideoWriter_fourcc(*"mp4v")
+    safe_fps = min(60.0, max(1.0, float(actual_fps)))
+    writer = cv.VideoWriter(temp_path, fourcc, safe_fps, (small_w, small_h))
+    for frame in frames:
+        small = cv.resize(frame, (small_w, small_h))
+        writer.write(small)
+    writer.release()
 
-        print(
-            f"📦 Packaging clip {clip_number} ({len(frames)} frames @ {actual_fps:.1f} FPS)..."
-        )
+    print(f"🔍 Analyzing clip_{clip_number} ({len(frames)} frames)...")
+    try:
+        result = asyncio.run(analyze_clip(temp_path))
 
-        # 1. Write to temp directory for Gemini
-        os.makedirs("temp_clips", exist_ok=True)
-        fourcc = cv.VideoWriter_fourcc(*"mp4v")
-        safe_fps = min(60.0, max(1.0, float(actual_fps)))
-        writer = cv.VideoWriter(temp_path, fourcc, safe_fps, (width, height))
-        for frame in frames:
-            writer.write(frame)
-        writer.release()
-
-        # 2. Send to Gemini
-        print(f"🚀 [UPLOAD] Sending {temp_path} to Gemini...")
-        try:
-            result = asyncio.run(analyze_clip(temp_path))
-
-            report = result.get("report")
-            severity = result.get("severity")
-            if severity == "violent":
-                # Move to incidents folder
-                os.makedirs("incidents", exist_ok=True)
-                incident_path = f"incidents/clip_{clip_number}.mp4"
-                os.rename(temp_path, incident_path)
-                print(f"🚨 {incident_path}: VIOLENT — {report}\n")
-            else:
-                os.remove(temp_path)
-                print(f"✅ Clear: clip_{clip_number} — {report}\n")
-        except Exception as e:
-            print(f"❌ Error: {e}")
-
-        job_queue.task_done()
+        report = result.get("report")
+        severity = result.get("severity")
+        if severity == "violent":
+            os.makedirs("incidents", exist_ok=True)
+            incident_path = f"incidents/clip_{clip_number}.mp4"
+            os.rename(temp_path, incident_path)
+            print(f"🚨 {incident_path}: VIOLENT — {report}\n")
+        else:
+            os.remove(temp_path)
+            print(f"✅ Clear: clip_{clip_number} — {report}\n")
+    except Exception as e:
+        print(f"❌ Error: {e}")
 
 
 def start_capture(source=0):
@@ -96,16 +81,12 @@ def start_capture(source=0):
     width = int(stream.cap.get(cv.CAP_PROP_FRAME_WIDTH))
     height = int(stream.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
 
-    # --- Start the AI Worker Thread ---
-    job_queue = queue.Queue()
-    ai_thread = threading.Thread(target=process_worker, args=(job_queue,), daemon=True)
-    ai_thread.start()
-
+    executor = ThreadPoolExecutor(max_workers=5)
     clip_number = 0
     frames_buffer = []
     start_time = time.time()
 
-    print("🎥 CCTV Started (Producer/Consumer). Press 'q' to stop.")
+    print("🎥 CCTV Started. Press 'q' to stop.")
 
     while True:
         frame = stream.read()
@@ -118,9 +99,9 @@ def start_capture(source=0):
         if elapsed_time >= CLIP_DURATION:
             clip_number += 1
 
-            # Instantly toss the data into the bucket and keep moving
-            job_queue.put(
-                (frames_buffer.copy(), clip_number, elapsed_time, width, height)
+            executor.submit(
+                process_worker_single,
+                frames_buffer.copy(), clip_number, elapsed_time, width, height,
             )
 
             frames_buffer.clear()
@@ -128,22 +109,12 @@ def start_capture(source=0):
 
         cv.imshow("CCTV Feed", frame)
 
-        # waitKey(33) pauses the loop for ~33ms, capping us at ~30 FPS.
-        # This stops the CPU from grabbing duplicate frames!
         if cv.waitKey(33) == ord("q"):
             break
 
     print("\nShutting down camera feed...")
     stream.stop()
     cv.destroyAllWindows()
-
-    # Graceful Shutdown
-    pending_jobs = job_queue.qsize()
-    if pending_jobs > 0:
-        print(f"⏳ Waiting for {pending_jobs} pending AI analyses to finish...")
-
-    job_queue.put(None)  # Send the shutdown signal to the worker
-    ai_thread.join()  # Wait for the worker to finish
     print("👋 System exited safely.")
 
 
