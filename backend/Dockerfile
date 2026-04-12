@@ -55,7 +55,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ==========================================
 FROM base AS final
 
+COPY --from=prod-builder /app /app
+COPY entrypoint.sh /app/entrypoint.sh
+
+RUN chmod +x /app/entrypoint.sh
+
 ENV PATH="/app/.venv/bin:$PATH"
 
+USER nonroot
 
 ENTRYPOINT ["/app/entrypoint.sh"]
