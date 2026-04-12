@@ -4,3 +4,9 @@ static/
 videos/
 __pycache__/
 *.pyc
+.venv/
+__pycache__/
+*.pyc
+.env
+*node_modules/
+*env/

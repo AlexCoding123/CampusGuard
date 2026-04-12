@@ -50,11 +50,11 @@ async def send_alert(alert: dict):
     payload = {
         "group_id": alert.get("group_id", "1"),
         "severity": alert.get("severity", "aggressive"),
+        "report": alert.get("report", ""),
         "confidence": round(float(alert.get("confidence", 0.5)), 2),
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "location": alert.get("location", "Camera 1 - Main Entrance"),
         "video_url": alert.get("video_url", ""),
-        "report": alert.get("report", ""),
     }
     if not alert_queues:
         return {"status": "no clients connected", "sent_to": 0}
@@ -74,6 +74,7 @@ async def test_alert():
         {
             "group_id": "1",
             "severity": "violent",
+            "report": "Unidentified individual exhibiting aggressive behavior near the entrance. Subject was observed making threatening gestures toward staff.",
             "confidence": 0.87,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "location": "Camera 1 - Main Entrance",
@@ -82,15 +83,17 @@ async def test_alert():
         {
             "group_id": "1",
             "severity": "violent",
+            "report": "Unidentified individual exhibiting aggressive behavior near the entrance. Subject was observed making threatening gestures toward staff.",
             "confidence": 0.91,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "location": "Camera 1 - Main Entrance",
+            "location": "Camera 1 - Main Entrance", 
             "video_url": "http://127.0.0.1:8000/alerts/media/shoot.mp4",
         },
         # Group 2 — solo
         {
             "group_id": "2",
             "severity": "critical",
+            "report": "Unidentified individual exhibiting aggressive behavior near the entrance. Subject was observed making threatening gestures toward staff.",
             "confidence": 0.76,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "location": "Camera 2 - Parking Lot",
@@ -100,6 +103,7 @@ async def test_alert():
         {
             "group_id": "3",
             "severity": "aggressive",
+            "report": "Unidentified individual exhibiting aggressive behavior near the entrance. Subject was observed making threatening gestures toward staff.",
             "confidence": 0.63,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "location": "Camera 3 - Side Exit",

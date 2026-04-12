@@ -138,7 +138,7 @@ export default function Modal({ group, onClose }) {
 
           {/* Event timeline if multiple */}
           {group.alerts.length > 1 && (
-            <div style={{ background: "#0d1520", border: "1px solid #1a2a3a", borderRadius: "4px", padding: "16px" }}>
+            <div style={{ background: "#0d1520", border: "1px solid #1a2a3a", borderRadius: "4px", padding: "16px", marginBottom: "18px" }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.65rem", color: "#3a5a7a", letterSpacing: "0.15em", marginBottom: "12px" }}>EVENT TIMELINE</div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {group.alerts.map((a, i) => (
@@ -152,6 +152,31 @@ export default function Modal({ group, onClose }) {
                 ))}
               </div>
             </div>
+          )}
+
+          {/* Reports */}
+          {group.alerts.length === 1 ? (
+            // Single alert — show one report block if available
+            latest.report ? (
+              <div style={{ background: "#0d1520", border: "1px solid #1a2a3a", borderRadius: "4px", padding: "16px" }}>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.65rem", color: "#3a5a7a", letterSpacing: "0.15em", marginBottom: "10px" }}>REPORT</div>
+                <div style={{ fontFamily: "'Barlow', sans-serif", fontSize: "clamp(0.92rem, 2.5vw, 1rem)", color: "#a0bcd4", lineHeight: 1.65 }}>{latest.report}</div>
+              </div>
+            ) : null
+          ) : (
+            // Multiple alerts — show each report labeled by clip number
+            group.alerts.some(a => a.report) && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {group.alerts.map((a, i) => a.report ? (
+                  <div key={i} style={{ background: "#0d1520", border: "1px solid #1a2a3a", borderRadius: "4px", padding: "16px" }}>
+                    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.65rem", color: "#3a5a7a", letterSpacing: "0.15em", marginBottom: "10px" }}>
+                      REPORT · CLIP {i + 1} · {formatTime(a.timestamp)}
+                    </div>
+                    <div style={{ fontFamily: "'Barlow', sans-serif", fontSize: "clamp(0.92rem, 2.5vw, 1rem)", color: "#a0bcd4", lineHeight: 1.65 }}>{a.report}</div>
+                  </div>
+                ) : null)}
+              </div>
+            )
           )}
         </div>
       </div>
