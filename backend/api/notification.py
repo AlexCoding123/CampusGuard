@@ -86,7 +86,7 @@ async def test_alert():
             "report": "Unidentified individual exhibiting aggressive behavior near the entrance. Subject was observed making threatening gestures toward staff.",
             "confidence": 0.91,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "location": "Camera 1 - Main Entrance",
+            "location": "Camera 1 - Main Entrance", 
             "video_url": "http://127.0.0.1:8000/alerts/media/shoot.mp4",
         },
         # Group 2 — solo
