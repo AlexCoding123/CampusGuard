@@ -1,10 +1,18 @@
 services:
-  backend:
-    image: 'amirrezamojtahedi/campusguard:latest'
+  camera:
+    image: 'amirrezamojtahedi/camera:latest'
     volumes:
       - 'incidents:/app/incidents'
     environment:
       - 'GEMINI_API_KEY=${GEMINI_API_KEY:?}'
+
+  sse:
+    image: 'amirrezamojtahedi/sse:latest'
+    volumes:
+      - 'incidents:/app/incidents'
+    environment:
+      - 'GEMINI_API_KEY=${GEMINI_API_KEY:?}'
+  
   frontend:
     image: 'amirrezamojtahedi/campusguard-dashboard:latest'
 volumes:

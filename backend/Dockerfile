@@ -56,8 +56,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM base AS final
 
 COPY --from=prod-builder /app /app
-COPY entrypoint.sh /app/entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+FROM final AS camera
+
+ENTRYPOINT ["python", "-m", "camera_opener"]
+
+FROM final AS sse
+
+ENTRYPOINT ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -131,7 +131,7 @@ def process_worker_single(frames, clip_number, duration):
                     "confidence": round(float(result.get("confidence", 0.5)), 2),
                     "timestamp": datetime.now(UTC).isoformat(),
                     "location": "Camera 1 - Main Entrance",
-                    "video_url": f"http://127.0.0.1:8080/incidents/clip_{clip_number}.mp4",
+                    "video_url": f"https://sse.campusguard.tech/incidents/clip_{clip_number}.mp4",
                     "report": report or "",
                 },
             )

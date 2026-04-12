@@ -1,4 +1,4 @@
-export const API_BASE = "http://backend:8080";
+export const API_BASE = "https://sse.campusguard.tech";
 
 export const SEVERITY_CONFIG = {
   aggressive: {
