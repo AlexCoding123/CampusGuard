@@ -63,9 +63,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 USER nonroot
 
-
-FROM final AS camera_opener_final
 CMD ["python", "-m", "camera_opener"]
-
-FROM final AS opencv_service_final
-CMD ["python", "-m", "opencv_service"]

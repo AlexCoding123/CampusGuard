@@ -9,7 +9,6 @@ services:
       - ./backend:/app
       - /app/.venv
     ports:
-      - "8000:8000"
       - "5050:5050"
   frontend:
     build:

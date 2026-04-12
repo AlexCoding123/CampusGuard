@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os
 import socket
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -9,11 +8,11 @@ import cv2 as cv
 import numpy as np
 import socketio
 import uvicorn
-from opencv_service import process_worker_single
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
+from opencv_service import process_worker_single
 
 load_dotenv()
 

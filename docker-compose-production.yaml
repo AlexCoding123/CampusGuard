@@ -1,19 +1,13 @@
 services:
-  camera_opener:
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      target: camera_opener_final
+      target: final
     volumes:
       - incidents:/app/incidents
-
-  opencv_service:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: opencv_service_final
-    volumes:
-      - incidents:/app/incidents
+    env_file:
+      - ./backend/.env
 
   frontend:
     build:
