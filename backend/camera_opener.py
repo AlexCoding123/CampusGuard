@@ -20,7 +20,13 @@ phone_sessions: dict = {}
 clip_number = 0
 executor = ThreadPoolExecutor(max_workers=5)
 
-sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
+sio = socketio.AsyncServer(
+    async_mode="asgi", 
+    cors_allowed_origins="*",
+    transports=['websocket', 'http_long_polling'],  # Add this line
+    ping_timeout=60,
+    ping_interval=25,
+)
 app = FastAPI()
 socket_app = socketio.ASGIApp(sio, app)
 
@@ -266,7 +272,7 @@ async def on_frame(sid, data):
 
         h, w = frames[0].shape[:2]
         print(f"✂️  Clip {clip_number} — {len(frames)} frames from {sid[:6]}")
-        executor.submit(process_worker_single, frames, clip_number, elapsed, w, h)
+        executor.submit(process_worker_single, frames, clip_number, elapsed)
 
 
 # ---------------------------------------------------------------------------
